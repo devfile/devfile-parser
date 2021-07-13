@@ -47,8 +47,20 @@ func TestGetContainers(t *testing.T) {
 		},
 	}
 
+	applyCommands := []v1.Command{
+		{
+			Id: "apply1",
+			CommandUnion: v1.CommandUnion{
+				Apply: &v1.ApplyCommand{
+					Component: containerNames[1],
+				},
+			},
+		},
+	}
+
 	tests := []struct {
 		name                  string
+		eventCommands         []string
 		containerComponents   []v1.Component
 		filteredComponents    []v1.Component
 		filterOptions         common.DevfileOptions
@@ -202,6 +214,38 @@ func TestGetContainers(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "should not return init container",
+			eventCommands: []string{
+				"apply1",
+			},
+			containerComponents: []v1.Component{
+				{
+					Name: containerNames[0],
+					ComponentUnion: v1.ComponentUnion{
+						Container: &v1.ContainerComponent{
+							Container: v1.Container{
+								Image:        containerImages[0],
+								MountSources: &falseMountSources,
+							},
+						},
+					},
+				},
+				{
+					Name: containerNames[1],
+					ComponentUnion: v1.ComponentUnion{
+						Container: &v1.ContainerComponent{
+							Container: v1.Container{
+								Image:        containerImages[1],
+								MountSources: &falseMountSources,
+							},
+						},
+					},
+				},
+			},
+			wantContainerName:  containerNames[0],
+			wantContainerImage: containerImages[0],
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -222,6 +266,16 @@ func TestGetContainers(t *testing.T) {
 				mockGetComponents.Return(tt.filteredComponents, nil).AnyTimes()
 			}
 			mockDevfileData.EXPECT().GetProjects(common.DevfileOptions{}).Return(projects, nil).AnyTimes()
+
+			// to set up the prestartevent and apply command for init container
+			mockGetCommands := mockDevfileData.EXPECT().GetCommands(common.DevfileOptions{})
+			mockGetCommands.Return(applyCommands, nil).AnyTimes()
+			preStartEvents := v1.Events{
+				DevWorkspaceEvents: v1.DevWorkspaceEvents{
+					PreStart: tt.eventCommands,
+				},
+			}
+			mockDevfileData.EXPECT().GetEvents().Return(preStartEvents).AnyTimes()
 
 			devObj := parser.DevfileObj{
 				Data: mockDevfileData,
@@ -418,7 +472,7 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 				Data: mockDevfileData,
 			}
 
-			containers, err := GetContainers(devObj, common.DevfileOptions{})
+			containers, err := getAllContainers(devObj, common.DevfileOptions{})
 			if err != nil {
 				t.Errorf("TestGetVolumesAndVolumeMounts error - %v", err)
 				return

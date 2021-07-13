@@ -503,3 +503,48 @@ func addVolumeMountToContainers(containers []corev1.Container, volumeName string
 		}
 	}
 }
+
+// getAllContainers iterates through the devfile components and returns all container components
+func getAllContainers(devfileObj parser.DevfileObj, options common.DevfileOptions) ([]corev1.Container, error) {
+	var containers []corev1.Container
+
+	options.ComponentOptions = common.ComponentOptions{
+		ComponentType: v1.ContainerComponentType,
+	}
+	containerComponents, err := devfileObj.Data.GetComponents(options)
+	if err != nil {
+		return nil, err
+	}
+	for _, comp := range containerComponents {
+		envVars := convertEnvs(comp.Container.Env)
+		resourceReqs := getResourceReqs(comp)
+		ports := convertPorts(comp.Container.Endpoints)
+		containerParams := containerParams{
+			Name:         comp.Name,
+			Image:        comp.Container.Image,
+			IsPrivileged: false,
+			Command:      comp.Container.Command,
+			Args:         comp.Container.Args,
+			EnvVars:      envVars,
+			ResourceReqs: resourceReqs,
+			Ports:        ports,
+		}
+		container := getContainer(containerParams)
+
+		// If `mountSources: true` was set PROJECTS_ROOT & PROJECT_SOURCE env
+		if comp.Container.MountSources == nil || *comp.Container.MountSources {
+			syncRootFolder := addSyncRootFolder(container, comp.Container.SourceMapping)
+
+			projects, err := devfileObj.Data.GetProjects(common.DevfileOptions{})
+			if err != nil {
+				return nil, err
+			}
+			err = addSyncFolder(container, syncRootFolder, projects)
+			if err != nil {
+				return nil, err
+			}
+		}
+		containers = append(containers, *container)
+	}
+	return containers, nil
+}

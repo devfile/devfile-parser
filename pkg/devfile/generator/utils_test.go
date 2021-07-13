@@ -774,7 +774,7 @@ func TestGetServiceSpec(t *testing.T) {
 				mockGetComponents.Return(tt.filteredComponents, nil).AnyTimes()
 			}
 			mockDevfileData.EXPECT().GetProjects(common.DevfileOptions{}).Return(nil, nil).AnyTimes()
-
+			mockDevfileData.EXPECT().GetEvents().Return(v1.Events{}).AnyTimes()
 			devObj := parser.DevfileObj{
 				Data: mockDevfileData,
 			}

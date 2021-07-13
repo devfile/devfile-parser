@@ -55,54 +55,50 @@ func GetObjectMeta(name, namespace string, labels, annotations map[string]string
 	return objectMeta
 }
 
-// GetContainers iterates through the devfile components and returns a slice of the corresponding containers
+// GetContainers iterates through all container components, filters out init containers and returns corresponding containers
 func GetContainers(devfileObj parser.DevfileObj, options common.DevfileOptions) ([]corev1.Container, error) {
-	var containers []corev1.Container
-
-	options.ComponentOptions = common.ComponentOptions{
-		ComponentType: v1.ContainerComponentType,
-	}
-	containerComponents, err := devfileObj.Data.GetComponents(options)
+	allContainers, err := getAllContainers(devfileObj, options)
 	if err != nil {
 		return nil, err
 	}
-	for _, comp := range containerComponents {
-		envVars := convertEnvs(comp.Container.Env)
-		resourceReqs := getResourceReqs(comp)
-		ports := convertPorts(comp.Container.Endpoints)
-		containerParams := containerParams{
-			Name:         comp.Name,
-			Image:        comp.Container.Image,
-			IsPrivileged: false,
-			Command:      comp.Container.Command,
-			Args:         comp.Container.Args,
-			EnvVars:      envVars,
-			ResourceReqs: resourceReqs,
-			Ports:        ports,
-		}
-		container := getContainer(containerParams)
 
-		// If `mountSources: true` was set PROJECTS_ROOT & PROJECT_SOURCE env
-		if comp.Container.MountSources == nil || *comp.Container.MountSources {
-			syncRootFolder := addSyncRootFolder(container, comp.Container.SourceMapping)
+	// filter out init containers
+	preStartEvents := devfileObj.Data.GetEvents().PreStart
+	if len(preStartEvents) > 0 {
+		var eventCommands []string
+		commands, err := devfileObj.Data.GetCommands(common.DevfileOptions{})
+		if err != nil {
+			return nil, err
+		}
 
-			projects, err := devfileObj.Data.GetProjects(common.DevfileOptions{})
-			if err != nil {
-				return nil, err
-			}
-			err = addSyncFolder(container, syncRootFolder, projects)
-			if err != nil {
-				return nil, err
+		commandsMap := common.GetCommandsMap(commands)
+
+		for _, event := range preStartEvents {
+			eventSubCommands := common.GetCommandsFromEvent(commandsMap, event)
+			eventCommands = append(eventCommands, eventSubCommands...)
+		}
+
+		for _, commandName := range eventCommands {
+			if command, ok := commandsMap[commandName]; ok {
+				component := common.GetApplyComponent(command)
+
+				// Get the container info for the given component
+				for i, container := range allContainers {
+					if container.Name == component {
+						allContainers = append(allContainers[:i], allContainers[i+1:]...)
+					}
+				}
 			}
 		}
-		containers = append(containers, *container)
 	}
-	return containers, nil
+
+	return allContainers, nil
+
 }
 
 // GetInitContainers gets the init container for every preStart devfile event
 func GetInitContainers(devfileObj parser.DevfileObj) ([]corev1.Container, error) {
-	containers, err := GetContainers(devfileObj, common.DevfileOptions{})
+	containers, err := getAllContainers(devfileObj, common.DevfileOptions{})
 	if err != nil {
 		return nil, err
 	}
