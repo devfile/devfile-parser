@@ -51,7 +51,7 @@ func TestDevfile200_SetDevfileWorkspaceSpecContent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			devfilev2.SetDevfileWorkspaceSpecContent(tt.workspaceSpecContent)
 			if !reflect.DeepEqual(devfilev2, tt.expectedDevfilev2) {
-				t.Errorf("TestDevfile200_SetDevfileWorkspaceSpecContent() expected %v, got %v", tt.expectedDevfilev2, devfilev2)
+				t.Errorf("TestDevfile200_SetDevfileWorkspaceSpecContent() error: expected %v, got %v", tt.expectedDevfilev2, devfilev2)
 			}
 		})
 	}
@@ -100,7 +100,7 @@ func TestDevfile200_SetDevfileWorkspaceSpec(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			devfilev2.SetDevfileWorkspaceSpec(tt.workspaceSpec)
 			if !reflect.DeepEqual(devfilev2, tt.expectedDevfilev2) {
-				t.Errorf("TestDevfile200_SetDevfileWorkspaceSpec() expected %v, got %v", tt.expectedDevfilev2, devfilev2)
+				t.Errorf("TestDevfile200_SetDevfileWorkspaceSpec() error: expected %v, got %v", tt.expectedDevfilev2, devfilev2)
 			}
 		})
 	}

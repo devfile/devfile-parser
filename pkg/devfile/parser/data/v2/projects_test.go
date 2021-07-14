@@ -13,13 +13,14 @@ import (
 )
 
 func TestDevfile200_GetProjects(t *testing.T) {
+	invalidProjectSrcType := "unknown project source type"
 
 	tests := []struct {
 		name            string
 		currentProjects []v1.Project
 		filterOptions   common.DevfileOptions
 		wantProjects    []string
-		wantErr         bool
+		wantErr         *string
 	}{
 		{
 			name: "Get all the projects",
@@ -39,7 +40,6 @@ func TestDevfile200_GetProjects(t *testing.T) {
 			},
 			filterOptions: common.DevfileOptions{},
 			wantProjects:  []string{"project1", "project2"},
-			wantErr:       false,
 		},
 		{
 			name: "Get the filtered projects",
@@ -76,7 +76,6 @@ func TestDevfile200_GetProjects(t *testing.T) {
 				},
 			},
 			wantProjects: []string{"project1"},
-			wantErr:      false,
 		},
 		{
 			name: "Wrong filter for projects",
@@ -109,7 +108,6 @@ func TestDevfile200_GetProjects(t *testing.T) {
 					"firstStringIsWrong": "firstStringValue",
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "Invalid project src type",
@@ -127,7 +125,7 @@ func TestDevfile200_GetProjects(t *testing.T) {
 					"firstString": "firstStringValue",
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidProjectSrcType,
 		},
 	}
 	for _, tt := range tests {
@@ -143,12 +141,12 @@ func TestDevfile200_GetProjects(t *testing.T) {
 			}
 
 			projects, err := d.GetProjects(tt.filterOptions)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestDevfile200_GetProjects() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_GetProjects() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				// confirm the length of actual vs expected
 				if len(projects) != len(tt.wantProjects) {
-					t.Errorf("TestDevfile200_GetProjects() error - length of expected projects is not the same as the length of actual projects")
+					t.Errorf("TestDevfile200_GetProjects() error: length of expected projects is not the same as the length of actual projects")
 					return
 				}
 
@@ -162,9 +160,11 @@ func TestDevfile200_GetProjects(t *testing.T) {
 					}
 
 					if !matched {
-						t.Errorf("TestDevfile200_GetProjects() error - project %s not found in the devfile", wantProject)
+						t.Errorf("TestDevfile200_GetProjects() error: project %s not found in the devfile", wantProject)
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_GetProjects(): Error message should match")
 			}
 		})
 	}
@@ -230,14 +230,14 @@ func TestDevfile200_AddProjects(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.AddProjects(tt.args)
 			if (err != nil) != (tt.wantErr != nil) {
-				t.Errorf("TestDevfile200_AddProjects() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("TestDevfile200_AddProjects() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if tt.wantErr != nil {
-				assert.Regexp(t, *tt.wantErr, err.Error(), "Error message should match")
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_AddProjects(): Error message should match")
 			} else if err == nil {
 				wantProjects := append(currentProject, tt.args...)
 
 				if !reflect.DeepEqual(d.Projects, wantProjects) {
-					t.Errorf("wanted: %v, got: %v, difference at %v", wantProjects, d.Projects, pretty.Compare(wantProjects, d.Projects))
+					t.Errorf("TestDevfile200_AddProjects() error: wanted: %v, got: %v, difference at %v", wantProjects, d.Projects, pretty.Compare(wantProjects, d.Projects))
 				}
 			}
 		})
@@ -246,12 +246,15 @@ func TestDevfile200_AddProjects(t *testing.T) {
 }
 
 func TestDevfile200_UpdateProject(t *testing.T) {
+
+	missingProjectErr := "update project failed: project .* not found"
+
 	tests := []struct {
 		name              string
 		args              v1.Project
 		devfilev2         *DevfileV2
 		expectedDevfilev2 *DevfileV2
-		wantErr           bool
+		wantErr           *string
 	}{
 		{
 			name: "It should update project for existing project",
@@ -295,7 +298,6 @@ func TestDevfile200_UpdateProject(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "It should fail to update project for non existing project",
@@ -321,7 +323,7 @@ func TestDevfile200_UpdateProject(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantErr: &missingProjectErr,
 		},
 	}
 
@@ -329,16 +331,19 @@ func TestDevfile200_UpdateProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.devfilev2.UpdateProject(tt.args)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestDevfile200_UpdateProject() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_UpdateProject() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(tt.devfilev2, tt.expectedDevfilev2) {
-				t.Errorf("TestDevfile200_UpdateProject() - wanted: %v, got: %v, difference at %v", tt.expectedDevfilev2, tt.devfilev2, pretty.Compare(tt.expectedDevfilev2, tt.devfilev2))
+				t.Errorf("TestDevfile200_UpdateProject() error: wanted: %v, got: %v, difference at %v", tt.expectedDevfilev2, tt.devfilev2, pretty.Compare(tt.expectedDevfilev2, tt.devfilev2))
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_UpdateProject(): Error message should match")
 			}
 		})
 	}
 }
 
 func TestDevfile200_DeleteProject(t *testing.T) {
+	missingProjectErr := "project .* is not found in the devfile"
 
 	d := &DevfileV2{
 		v1.Devfile{
@@ -363,7 +368,7 @@ func TestDevfile200_DeleteProject(t *testing.T) {
 		name            string
 		projectToDelete string
 		wantProjects    []v1.Project
-		wantErr         bool
+		wantErr         *string
 	}{
 		{
 			name:            "Project successfully deleted",
@@ -374,21 +379,22 @@ func TestDevfile200_DeleteProject(t *testing.T) {
 					ClonePath: "/project2",
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name:            "Project not found",
 			projectToDelete: "nodejs1",
-			wantErr:         true,
+			wantErr:         &missingProjectErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.DeleteProject(tt.projectToDelete)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DeleteProject() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_DeleteProject() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
-				assert.Equal(t, tt.wantProjects, d.Projects, "The two values should be the same.")
+				assert.Equal(t, tt.wantProjects, d.Projects, "TestDevfile200_DeleteProject(): The two values should be the same.")
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_DeleteProject(): Error message should match")
 			}
 		})
 	}
@@ -397,12 +403,14 @@ func TestDevfile200_DeleteProject(t *testing.T) {
 
 func TestDevfile200_GetStarterProjects(t *testing.T) {
 
+	invalidStarterProjectSrcTypeErr := "unknown project source type"
+
 	tests := []struct {
 		name                   string
 		currentStarterProjects []v1.StarterProject
 		filterOptions          common.DevfileOptions
 		wantStarterProjects    []string
-		wantErr                bool
+		wantErr                *string
 	}{
 		{
 			name: "Get all the starter projects",
@@ -422,7 +430,6 @@ func TestDevfile200_GetStarterProjects(t *testing.T) {
 			},
 			filterOptions:       common.DevfileOptions{},
 			wantStarterProjects: []string{"project1", "project2"},
-			wantErr:             false,
 		},
 		{
 			name: "Get the filtered starter projects",
@@ -460,7 +467,6 @@ func TestDevfile200_GetStarterProjects(t *testing.T) {
 				},
 			},
 			wantStarterProjects: []string{"project1", "project3"},
-			wantErr:             false,
 		},
 		{
 			name: "Wrong filter for starter projects",
@@ -491,7 +497,6 @@ func TestDevfile200_GetStarterProjects(t *testing.T) {
 					"firstStringIsWrong": "firstStringValue",
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "Invalid starter project src type",
@@ -509,7 +514,7 @@ func TestDevfile200_GetStarterProjects(t *testing.T) {
 					"firstString": "firstStringValue",
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidStarterProjectSrcTypeErr,
 		},
 	}
 	for _, tt := range tests {
@@ -525,12 +530,12 @@ func TestDevfile200_GetStarterProjects(t *testing.T) {
 			}
 
 			starterProjects, err := d.GetStarterProjects(tt.filterOptions)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestDevfile200_GetStarterProjects() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_GetStarterProjects() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				// confirm the length of actual vs expected
 				if len(starterProjects) != len(tt.wantStarterProjects) {
-					t.Errorf("TestDevfile200_GetStarterProjects() error - length of expected starter projects is not the same as the length of actual starter projects")
+					t.Errorf("TestDevfile200_GetStarterProjects() error: length of expected starter projects is not the same as the length of actual starter projects")
 					return
 				}
 
@@ -545,9 +550,11 @@ func TestDevfile200_GetStarterProjects(t *testing.T) {
 					}
 
 					if !matched {
-						t.Errorf("TestDevfile200_GetStarterProjects() error - starter project %s not found in the devfile", wantProject)
+						t.Errorf("TestDevfile200_GetStarterProjects() error: starter project %s not found in the devfile", wantProject)
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_GetStarterProjects(): Error message should match")
 			}
 		})
 	}
@@ -593,7 +600,6 @@ func TestDevfile200_AddStarterProjects(t *testing.T) {
 					Description: "starter project for springboot",
 				},
 			},
-			wantErr: nil,
 		},
 
 		{
@@ -616,14 +622,14 @@ func TestDevfile200_AddStarterProjects(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.AddStarterProjects(tt.args)
 			if (err != nil) != (tt.wantErr != nil) {
-				t.Errorf("TestDevfile200_AddStarterProjects() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("TestDevfile200_AddStarterProjects() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if tt.wantErr != nil {
-				assert.Regexp(t, *tt.wantErr, err.Error(), "Error message should match")
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_AddStarterProjects(): Error message should match")
 			} else if err == nil {
 				wantProjects := append(currentProject, tt.args...)
 
 				if !reflect.DeepEqual(d.StarterProjects, wantProjects) {
-					t.Errorf("wanted: %v, got: %v, difference at %v", wantProjects, d.StarterProjects, pretty.Compare(wantProjects, d.StarterProjects))
+					t.Errorf("TestDevfile200_AddStarterProjects() error: wanted: %v, got: %v, difference at %v", wantProjects, d.StarterProjects, pretty.Compare(wantProjects, d.StarterProjects))
 				}
 			}
 		})
@@ -632,12 +638,15 @@ func TestDevfile200_AddStarterProjects(t *testing.T) {
 }
 
 func TestDevfile200_UpdateStarterProject(t *testing.T) {
+
+	missingStarterProjectErr := "update starter project failed: starter project .* not found"
+
 	tests := []struct {
 		name              string
 		args              v1.StarterProject
 		devfilev2         *DevfileV2
 		expectedDevfilev2 *DevfileV2
-		wantErr           bool
+		wantErr           *string
 	}{
 		{
 			name: "It should update project for existing project",
@@ -681,7 +690,6 @@ func TestDevfile200_UpdateStarterProject(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "It should fail to update project for non existing project",
@@ -707,7 +715,7 @@ func TestDevfile200_UpdateStarterProject(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantErr: &missingStarterProjectErr,
 		},
 	}
 
@@ -715,10 +723,12 @@ func TestDevfile200_UpdateStarterProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.devfilev2.UpdateStarterProject(tt.args)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestDevfile200_UpdateStarterProject() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_UpdateStarterProject() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(tt.devfilev2, tt.expectedDevfilev2) {
-				t.Errorf("TestDevfile200_UpdateStarterProject() - wanted: %v, got: %v, difference at %v", tt.expectedDevfilev2, tt.devfilev2, pretty.Compare(tt.expectedDevfilev2, tt.devfilev2))
+				t.Errorf("TestDevfile200_UpdateStarterProject() error: wanted: %v, got: %v, difference at %v", tt.expectedDevfilev2, tt.devfilev2, pretty.Compare(tt.expectedDevfilev2, tt.devfilev2))
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_UpdateStarterProject(): Error message should match")
 			}
 		})
 	}
@@ -745,11 +755,13 @@ func TestDevfile200_DeleteStarterProject(t *testing.T) {
 		},
 	}
 
+	missingStarterProjectErr := "starter project .* is not found in the devfile"
+
 	tests := []struct {
 		name                   string
 		starterProjectToDelete string
 		wantStarterProjects    []v1.StarterProject
-		wantErr                bool
+		wantErr                *string
 	}{
 		{
 			name:                   "Starter Project successfully deleted",
@@ -760,21 +772,22 @@ func TestDevfile200_DeleteStarterProject(t *testing.T) {
 					SubDir: "/project2",
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name:                   "Starter Project not found",
 			starterProjectToDelete: "nodejs1",
-			wantErr:                true,
+			wantErr:                &missingStarterProjectErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.DeleteStarterProject(tt.starterProjectToDelete)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DeleteStarterProject() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_DeleteStarterProject() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
-				assert.Equal(t, tt.wantStarterProjects, d.StarterProjects, "The two values should be the same.")
+				assert.Equal(t, tt.wantStarterProjects, d.StarterProjects, "TestDevfile200_DeleteStarterProject(): The two values should be the same.")
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_DeleteStarterProject(): Error message should match")
 			}
 		})
 	}

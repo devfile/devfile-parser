@@ -130,17 +130,17 @@ func TestAddAndRemoveEnvVars(t *testing.T) {
 			err := tt.currentDevfile.AddEnvVars(tt.listToAdd)
 
 			if err != nil {
-				t.Errorf("error while adding env vars %+v", err.Error())
+				t.Errorf("TestAddAndRemoveEnvVars() unexpected error while adding env vars %+v", err.Error())
 			}
 
 			err = tt.currentDevfile.RemoveEnvVars(tt.listToRemove)
 
 			if err != nil {
-				t.Errorf("error while removing env vars %+v", err.Error())
+				t.Errorf("TestAddAndRemoveEnvVars() unexpected error while removing env vars %+v", err.Error())
 			}
 
 			if !reflect.DeepEqual(tt.currentDevfile.Data, tt.wantDevFile.Data) {
-				t.Errorf("wanted: %v, got: %v, difference at %v", tt.wantDevFile, tt.currentDevfile, pretty.Compare(tt.currentDevfile.Data, tt.wantDevFile.Data))
+				t.Errorf("TestAddAndRemoveEnvVars() error: wanted: %v, got: %v, difference at %v", tt.wantDevFile, tt.currentDevfile, pretty.Compare(tt.currentDevfile.Data, tt.wantDevFile.Data))
 			}
 
 		})

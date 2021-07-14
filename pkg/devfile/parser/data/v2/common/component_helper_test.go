@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	v1 "github.com/devfile/api/v2/pkg/apis/workspaces/v1alpha2"
@@ -89,11 +90,12 @@ func TestIsVolume(t *testing.T) {
 }
 
 func TestGetComponentType(t *testing.T) {
+	cmpTypeErr := "unknown component type"
 
 	tests := []struct {
 		name          string
 		component     v1.Component
-		wantErr       bool
+		wantErr       *string
 		componentType v1.ComponentType
 	}{
 		{
@@ -107,7 +109,6 @@ func TestGetComponentType(t *testing.T) {
 				},
 			},
 			componentType: v1.VolumeComponentType,
-			wantErr:       false,
 		},
 		{
 			name: "Openshift component",
@@ -118,7 +119,6 @@ func TestGetComponentType(t *testing.T) {
 				},
 			},
 			componentType: v1.OpenshiftComponentType,
-			wantErr:       false,
 		},
 		{
 			name: "Kubernetes component",
@@ -129,7 +129,6 @@ func TestGetComponentType(t *testing.T) {
 				},
 			},
 			componentType: v1.KubernetesComponentType,
-			wantErr:       false,
 		},
 		{
 			name: "Container component",
@@ -140,7 +139,6 @@ func TestGetComponentType(t *testing.T) {
 				},
 			},
 			componentType: v1.ContainerComponentType,
-			wantErr:       false,
 		},
 		{
 			name: "Plugin component",
@@ -151,7 +149,6 @@ func TestGetComponentType(t *testing.T) {
 				},
 			},
 			componentType: v1.PluginComponentType,
-			wantErr:       false,
 		},
 		{
 			name: "Custom component",
@@ -162,7 +159,6 @@ func TestGetComponentType(t *testing.T) {
 				},
 			},
 			componentType: v1.CustomComponentType,
-			wantErr:       false,
 		},
 		{
 			name: "Unknown component",
@@ -170,17 +166,19 @@ func TestGetComponentType(t *testing.T) {
 				Name:           "name",
 				ComponentUnion: v1.ComponentUnion{},
 			},
-			wantErr: true,
+			wantErr: &cmpTypeErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := GetComponentType(tt.component)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetComponentType() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestGetComponentType() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && got != tt.componentType {
 				t.Errorf("TestGetComponentType error: component type mismatch, expected: %v got: %v", tt.componentType, got)
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestGetComponentType(): Error message should match")
 			}
 		})
 	}

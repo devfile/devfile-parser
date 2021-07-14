@@ -38,11 +38,9 @@ func TestDevfile200_AddEvents(t *testing.T) {
 					PostStart: []string{"postStart1"},
 				},
 			},
-			wantErr: nil,
 		},
 		{
-			name:          "successfully add the events to empty devfile event",
-			currentEvents: nil,
+			name: "successfully add the events to empty devfile event",
 			newEvents: v1.Events{
 				DevWorkspaceEvents: v1.DevWorkspaceEvents{
 					PostStart: []string{"postStart1"},
@@ -53,7 +51,6 @@ func TestDevfile200_AddEvents(t *testing.T) {
 					PostStart: []string{"postStart1"},
 				},
 			},
-			wantErr: nil,
 		},
 		{
 			name: "event already present",
@@ -88,9 +85,9 @@ func TestDevfile200_AddEvents(t *testing.T) {
 			err := d.AddEvents(tt.newEvents)
 
 			if (err != nil) != (tt.wantErr != nil) {
-				t.Errorf("TestDevfile200_AddEvents() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("TestDevfile200_AddEvents() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if tt.wantErr != nil {
-				assert.Regexp(t, *tt.wantErr, err.Error(), "Error message should match")
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_AddEvents(): Error message should match")
 			} else {
 				if !reflect.DeepEqual(*d.Events, tt.wantEvents) {
 					t.Errorf("TestDevfile200_AddEvents() wanted: %v, got: %v, difference at %v", tt.wantEvents, *d.Events, pretty.Compare(tt.wantEvents, *d.Events))
@@ -162,7 +159,7 @@ func TestDevfile200_UpdateEvents(t *testing.T) {
 
 			events := d.GetEvents()
 			if !reflect.DeepEqual(events, tt.newEvents) {
-				t.Errorf("TestDevfile200_UpdateEvents events did not get updated. got - %+v, wanted - %+v", events, tt.newEvents)
+				t.Errorf("TestDevfile200_UpdateEvents() error: events did not get updated. got - %+v, wanted - %+v", events, tt.newEvents)
 			}
 
 		})

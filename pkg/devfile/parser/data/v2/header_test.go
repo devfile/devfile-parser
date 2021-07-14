@@ -21,18 +21,18 @@ func TestDevfile200_GetSchemaVersion(t *testing.T) {
 			devfilev2: &DevfileV2{
 				v1.Devfile{
 					DevfileHeader: devfilepkg.DevfileHeader{
-						SchemaVersion: "1.0.0",
+						SchemaVersion: "2.0.0",
 					},
 				},
 			},
-			expectedSchemaVersion: "1.0.0",
+			expectedSchemaVersion: "2.0.0",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			version := tt.devfilev2.GetSchemaVersion()
 			if version != tt.expectedSchemaVersion {
-				t.Errorf("TestDevfile200_GetSchemaVersion error - schema version did not match. Expected %s, got %s", tt.expectedSchemaVersion, version)
+				t.Errorf("TestDevfile200_GetSchemaVersion() error: schema version did not match. Expected %s, got %s", tt.expectedSchemaVersion, version)
 			}
 		})
 	}
@@ -85,7 +85,7 @@ func TestDevfile200_SetSchemaVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.devfilev2.SetSchemaVersion(tt.schemaVersion)
 			if !reflect.DeepEqual(tt.devfilev2, tt.expectedDevfilev2) {
-				t.Errorf("TestDevfile200_SetSchemaVersion() expected %v, got %v", tt.expectedDevfilev2, tt.devfilev2)
+				t.Errorf("TestDevfile200_SetSchemaVersion() error: expected %v, got %v", tt.expectedDevfilev2, tt.devfilev2)
 			}
 		})
 	}
@@ -125,13 +125,13 @@ func TestDevfile200_GetMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metadata := tt.devfilev2.GetMetadata()
 			if metadata.Name != tt.expectedName {
-				t.Errorf("TestDevfile200_GetMetadata() expected %v, got %v", tt.expectedName, metadata.Name)
+				t.Errorf("TestDevfile200_GetMetadata() error: name mismatch, expected %v, got %v", tt.expectedName, metadata.Name)
 			}
 			if metadata.Version != tt.expectedVersion {
-				t.Errorf("TestDevfile200_GetMetadata() expected %v, got %v", tt.expectedVersion, metadata.Version)
+				t.Errorf("TestDevfile200_GetMetadata() error: version mismatch, expected %v, got %v", tt.expectedVersion, metadata.Version)
 			}
 			if metadata.Attributes.GetString("alpha.build-dockerfile", nil) != tt.expectedDockerfilePath {
-				t.Errorf("TestDevfile200_GetMetadata() expected %v, got %v", tt.expectedDockerfilePath, metadata.Attributes.GetString("alpha.build-dockerfile", nil))
+				t.Errorf("TestDevfile200_GetMetadata() error: dockor file path mismatch, expected %v, got %v", tt.expectedDockerfilePath, metadata.Attributes.GetString("alpha.build-dockerfile", nil))
 			}
 		})
 	}
@@ -219,7 +219,7 @@ func TestDevfile200_SetSetMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.devfilev2.SetMetadata(tt.metadata)
 			if !reflect.DeepEqual(tt.devfilev2, tt.expectedDevfilev2) {
-				t.Errorf("TestDevfile200_SetSchemaVersion() expected %v, got %v", tt.expectedDevfilev2, tt.devfilev2)
+				t.Errorf("TestDevfile200_SetSchemaVersion() error: expected %v, got %v", tt.expectedDevfilev2, tt.devfilev2)
 			}
 		})
 	}

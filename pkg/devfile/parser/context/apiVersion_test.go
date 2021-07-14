@@ -55,11 +55,11 @@ func TestSetDevfileAPIVersion(t *testing.T) {
 			got := d.apiVersion
 
 			if !reflect.DeepEqual(gotErr, tt.wantErr) {
-				t.Errorf("unexpected error: '%v', wantErr: '%v'", gotErr, tt.wantErr)
+				t.Errorf("TestSetDevfileAPIVersion() unexpected error: '%v', wantErr: '%v'", gotErr, tt.wantErr)
 			}
 
 			if got != tt.want {
-				t.Errorf("want: '%v', got: '%v'", tt.want, got)
+				t.Errorf("TestSetDevfileAPIVersion() want: '%v', got: '%v'", tt.want, got)
 			}
 		})
 	}
@@ -80,7 +80,7 @@ func TestGetApiVersion(t *testing.T) {
 		)
 
 		if got != want {
-			t.Errorf("want: '%v', got: '%v'", want, got)
+			t.Errorf("TestGetApiVersion() want: '%v', got: '%v'", want, got)
 		}
 	})
 }

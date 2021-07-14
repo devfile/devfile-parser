@@ -14,12 +14,14 @@ import (
 
 func TestDevfile200_GetCommands(t *testing.T) {
 
+	invalidCmdTypeErr := "unknown command type"
+
 	tests := []struct {
 		name            string
 		currentCommands []v1.Command
 		filterOptions   common.DevfileOptions
 		wantCommands    []string
-		wantErr         bool
+		wantErr         *string
 	}{
 		{
 			name: "Get all the commands",
@@ -38,7 +40,6 @@ func TestDevfile200_GetCommands(t *testing.T) {
 				},
 			},
 			wantCommands: []string{"command1", "command2"},
-			wantErr:      false,
 		},
 		{
 			name: "Get the filtered commands",
@@ -135,7 +136,6 @@ func TestDevfile200_GetCommands(t *testing.T) {
 				},
 			},
 			wantCommands: []string{"command3"},
-			wantErr:      false,
 		},
 		{
 			name: "Wrong filter for commands",
@@ -166,7 +166,6 @@ func TestDevfile200_GetCommands(t *testing.T) {
 					"firstStringIsWrong": "firstStringValue",
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "Invalid command type",
@@ -184,7 +183,7 @@ func TestDevfile200_GetCommands(t *testing.T) {
 					"firstString": "firstStringValue",
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidCmdTypeErr,
 		},
 	}
 	for _, tt := range tests {
@@ -200,12 +199,12 @@ func TestDevfile200_GetCommands(t *testing.T) {
 			}
 
 			commands, err := d.GetCommands(tt.filterOptions)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestDevfile200_GetCommands() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_GetCommands() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				// confirm the length of actual vs expected
 				if len(commands) != len(tt.wantCommands) {
-					t.Errorf("TestDevfile200_GetCommands() error - length of expected commands is not the same as the length of actual commands")
+					t.Errorf("TestDevfile200_GetCommands() error: length of expected commands is not the same as the length of actual commands")
 					return
 				}
 
@@ -219,9 +218,11 @@ func TestDevfile200_GetCommands(t *testing.T) {
 					}
 
 					if !matched {
-						t.Errorf("TestDevfile200_GetCommands() error - command %s not found in the devfile", wantCommand)
+						t.Errorf("TestDevfile200_GetCommands() error: command %s not found in the devfile", wantCommand)
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_GetCommands(): Error message should match")
 			}
 		})
 	}
@@ -316,9 +317,9 @@ func TestDevfile200_AddCommands(t *testing.T) {
 			err := d.AddCommands(tt.newCommands)
 			// Unexpected error
 			if (err != nil) != (tt.wantErr != nil) {
-				t.Errorf("TestDevfile200_AddCommands() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("TestDevfile200_AddCommands() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if tt.wantErr != nil {
-				assert.Regexp(t, *tt.wantErr, err.Error(), "Error message should match")
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_AddCommands(): Error message should match")
 			} else {
 				wantCommands := append(tt.currentCommands, tt.newCommands...)
 				if !reflect.DeepEqual(d.Commands, wantCommands) {
@@ -331,15 +332,13 @@ func TestDevfile200_AddCommands(t *testing.T) {
 }
 
 func TestDevfile200_UpdateCommands(t *testing.T) {
+	invalidCmdErr := "update command failed: command .* not found"
 
-	type args struct {
-		name string
-	}
 	tests := []struct {
 		name            string
 		currentCommands []v1.Command
 		newCommand      v1.Command
-		wantErr         bool
+		wantErr         *string
 	}{
 		{
 			name: "successfully update the command",
@@ -367,7 +366,6 @@ func TestDevfile200_UpdateCommands(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "fail to update the command if not exist",
@@ -389,7 +387,7 @@ func TestDevfile200_UpdateCommands(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidCmdErr,
 		},
 	}
 	for _, tt := range tests {
@@ -406,12 +404,12 @@ func TestDevfile200_UpdateCommands(t *testing.T) {
 
 			err := d.UpdateCommand(tt.newCommand)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestDevfile200_UpdateCommands() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_UpdateCommands() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				commands, err := d.GetCommands(common.DevfileOptions{})
 				if err != nil {
-					t.Errorf("TestDevfile200_UpdateCommands() unxpected error %v", err)
+					t.Errorf("TestDevfile200_UpdateCommands() unxpected error: %v", err)
 					return
 				}
 
@@ -420,20 +418,23 @@ func TestDevfile200_UpdateCommands(t *testing.T) {
 					if tt.newCommand.Id == devfileCommand.Id {
 						matched = true
 						if !reflect.DeepEqual(devfileCommand, tt.newCommand) {
-							t.Errorf("TestDevfile200_UpdateCommands() command mismatch - wanted %+v, got %+v", tt.newCommand, devfileCommand)
+							t.Errorf("TestDevfile200_UpdateCommands() error: command mismatch, wanted %+v, got %+v", tt.newCommand, devfileCommand)
 						}
 					}
 				}
 
 				if !matched {
-					t.Errorf("TestDevfile200_UpdateCommands() command mismatch - did not find command with id %s", tt.newCommand.Id)
+					t.Errorf("TestDevfile200_UpdateCommands() error: command mismatch, did not find command with id %s", tt.newCommand.Id)
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_UpdateCommands(): Error message should match")
 			}
 		})
 	}
 }
 
 func TestDeleteCommands(t *testing.T) {
+	missingCmdErr := "command .* is not found in the devfile"
 
 	d := &DevfileV2{
 		v1.Devfile{
@@ -470,7 +471,7 @@ func TestDeleteCommands(t *testing.T) {
 		name            string
 		commandToDelete string
 		wantCommands    []v1.Command
-		wantErr         bool
+		wantErr         *string
 	}{
 		{
 			name:            "Successfully delete command",
@@ -491,21 +492,22 @@ func TestDeleteCommands(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name:            "Missing Command",
 			commandToDelete: "command34",
-			wantErr:         true,
+			wantErr:         &missingCmdErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.DeleteCommand(tt.commandToDelete)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DeleteCommand() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDeleteCommands() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
-				assert.Equal(t, tt.wantCommands, d.Commands, "The two values should be the same.")
+				assert.Equal(t, tt.wantCommands, d.Commands, "TestDeleteCommands(): The two values should be the same.")
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDeleteCommands(): Error message should match")
 			}
 		})
 	}

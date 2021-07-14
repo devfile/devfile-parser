@@ -102,9 +102,9 @@ func TestDevfile200_AddComponent(t *testing.T) {
 			err := d.AddComponents(tt.newComponents)
 			// Unexpected error
 			if (err != nil) != (tt.wantErr != nil) {
-				t.Errorf("TestDevfile200_AddComponents() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("TestDevfile200_AddComponents() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if tt.wantErr != nil {
-				assert.Regexp(t, *tt.wantErr, err.Error(), "Error message should match")
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_AddComponents(): Error message should match")
 			} else {
 				wantComponents := append(tt.currentComponents, tt.newComponents...)
 				if !reflect.DeepEqual(d.Components, wantComponents) {
@@ -116,12 +116,13 @@ func TestDevfile200_AddComponent(t *testing.T) {
 }
 
 func TestDevfile200_UpdateComponent(t *testing.T) {
+	invalidCmpErr := "update component failed: component .* not found"
 
 	tests := []struct {
 		name              string
 		currentComponents []v1.Component
 		newComponent      v1.Component
-		wantErr           bool
+		wantErr           *string
 	}{
 		{
 			name: "successfully update the component",
@@ -153,7 +154,6 @@ func TestDevfile200_UpdateComponent(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "fail to update the component if not exist",
@@ -179,7 +179,7 @@ func TestDevfile200_UpdateComponent(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidCmpErr,
 		},
 	}
 	for _, tt := range tests {
@@ -196,12 +196,12 @@ func TestDevfile200_UpdateComponent(t *testing.T) {
 
 			err := d.UpdateComponent(tt.newComponent)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestDevfile200_UpdateComponent() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_UpdateComponent() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				components, err := d.GetComponents(common.DevfileOptions{})
 				if err != nil {
-					t.Errorf("TestDevfile200_UpdateComponent() unxpected error %v", err)
+					t.Errorf("TestDevfile200_UpdateComponent() unexpected error: %v", err)
 					return
 				}
 
@@ -216,19 +216,22 @@ func TestDevfile200_UpdateComponent(t *testing.T) {
 				if !matched {
 					t.Error("TestDevfile200_UpdateComponent() error updating the component")
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_UpdateComponent(): Error message should match")
 			}
 		})
 	}
 }
 
 func TestGetDevfileComponents(t *testing.T) {
+	invalidCmpType := "unknown component type"
 
 	tests := []struct {
 		name           string
 		component      []v1.Component
 		wantComponents []string
 		filterOptions  common.DevfileOptions
-		wantErr        bool
+		wantErr        *string
 	}{
 		{
 			name:      "Invalid devfile",
@@ -349,7 +352,6 @@ func TestGetDevfileComponents(t *testing.T) {
 					ComponentType: v1.ContainerComponentType,
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "Invalid component type",
@@ -367,7 +369,7 @@ func TestGetDevfileComponents(t *testing.T) {
 					"firstString": "firstStringValue",
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidCmpType,
 		},
 	}
 	for _, tt := range tests {
@@ -383,12 +385,12 @@ func TestGetDevfileComponents(t *testing.T) {
 			}
 
 			components, err := d.GetComponents(tt.filterOptions)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetDevfileComponents() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestGetDevfileComponents() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				// confirm the length of actual vs expected
 				if len(components) != len(tt.wantComponents) {
-					t.Errorf("TestGetDevfileComponents() error - length of expected components is not the same as the length of actual components")
+					t.Errorf("TestGetDevfileComponents() error: length of expected components is not the same as the length of actual components")
 					return
 				}
 
@@ -402,9 +404,11 @@ func TestGetDevfileComponents(t *testing.T) {
 					}
 
 					if !matched {
-						t.Errorf("TestGetDevfileComponents() error - component %s not found in the devfile", wantComponent)
+						t.Errorf("TestGetDevfileComponents() error: component %s not found in the devfile", wantComponent)
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestGetDevfileComponents(): Error message should match")
 			}
 		})
 	}
@@ -418,7 +422,6 @@ func TestGetDevfileContainerComponents(t *testing.T) {
 		component            []v1.Component
 		expectedMatchesCount int
 		filterOptions        common.DevfileOptions
-		wantErr              bool
 	}{
 		{
 			name:                 "Invalid devfile",
@@ -507,7 +510,6 @@ func TestGetDevfileContainerComponents(t *testing.T) {
 				},
 			},
 			expectedMatchesCount: 0,
-			wantErr:              false,
 		},
 	}
 	for _, tt := range tests {
@@ -523,9 +525,9 @@ func TestGetDevfileContainerComponents(t *testing.T) {
 			}
 
 			devfileComponents, err := d.GetDevfileContainerComponents(tt.filterOptions)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetDevfileContainerComponents() error = %v, wantErr %v", err, tt.wantErr)
-			} else if err == nil && len(devfileComponents) != tt.expectedMatchesCount {
+			if err != nil {
+				t.Errorf("TestGetDevfileContainerComponents() unexpected error: %v", err)
+			} else if len(devfileComponents) != tt.expectedMatchesCount {
 				t.Errorf("TestGetDevfileContainerComponents error: wrong number of components matched: expected %v, actual %v", tt.expectedMatchesCount, len(devfileComponents))
 			}
 		})
@@ -540,7 +542,6 @@ func TestGetDevfileVolumeComponents(t *testing.T) {
 		component            []v1.Component
 		expectedMatchesCount int
 		filterOptions        common.DevfileOptions
-		wantErr              bool
 	}{
 		{
 			name:                 "Invalid devfile",
@@ -617,7 +618,6 @@ func TestGetDevfileVolumeComponents(t *testing.T) {
 				},
 			},
 			expectedMatchesCount: 0,
-			wantErr:              false,
 		},
 	}
 	for _, tt := range tests {
@@ -632,10 +632,10 @@ func TestGetDevfileVolumeComponents(t *testing.T) {
 				},
 			}
 			devfileComponents, err := d.GetDevfileVolumeComponents(tt.filterOptions)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetDevfileVolumeComponents() error = %v, wantErr %v", err, tt.wantErr)
-			} else if err == nil && len(devfileComponents) != tt.expectedMatchesCount {
-				t.Errorf("TestGetDevfileVolumeComponents error: wrong number of components matched: expected %v, actual %v", tt.expectedMatchesCount, len(devfileComponents))
+			if err != nil {
+				t.Errorf("TestGetDevfileVolumeComponents() unexpected error: %v", err)
+			} else if len(devfileComponents) != tt.expectedMatchesCount {
+				t.Errorf("TestGetDevfileVolumeComponents() error: wrong number of components matched: expected %v, actual %v", tt.expectedMatchesCount, len(devfileComponents))
 			}
 		})
 	}
@@ -643,6 +643,8 @@ func TestGetDevfileVolumeComponents(t *testing.T) {
 }
 
 func TestDeleteComponents(t *testing.T) {
+
+	missingCmpErr := "component .* is not found in the devfile"
 
 	d := &DevfileV2{
 		v1.Devfile{
@@ -685,7 +687,7 @@ func TestDeleteComponents(t *testing.T) {
 		name              string
 		componentToDelete string
 		wantComponents    []v1.Component
-		wantErr           bool
+		wantErr           *string
 	}{
 		{
 			name:              "Successfully delete a Component",
@@ -712,21 +714,22 @@ func TestDeleteComponents(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name:              "Missing Component",
 			componentToDelete: "comp12",
-			wantErr:           true,
+			wantErr:           &missingCmpErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.DeleteComponent(tt.componentToDelete)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DeleteComponent() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDeleteComponents() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
-				assert.Equal(t, tt.wantComponents, d.Components, "The two values should be the same.")
+				assert.Equal(t, tt.wantComponents, d.Components, "TestDeleteComponents(): The two values should be the same.")
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDeleteComponents(): Error message should match")
 			}
 		})
 	}

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	v200 "github.com/devfile/library/pkg/devfile/parser/data/v2/2.0.0"
@@ -130,10 +131,11 @@ func TestValidateDevfileSchema(t *testing.T) {
 
 		err := d.ValidateDevfileSchema()
 		if err != nil {
-			t.Errorf("unexpected error: '%v'", err)
+			t.Errorf("TestValidateDevfileSchema() unexpected error: '%v'", err)
 		}
 	})
 
+	expectedErr := "invalid devfile schema. errors :\n*.*schemaVersion is required"
 	t.Run("invalid 2.0.0 json schema", func(t *testing.T) {
 
 		var (
@@ -145,7 +147,9 @@ func TestValidateDevfileSchema(t *testing.T) {
 
 		err := d.ValidateDevfileSchema()
 		if err == nil {
-			t.Errorf("expected error, didn't get one")
+			t.Errorf("TestValidateDevfileSchema() expected error, didn't get one")
+		} else {
+			assert.Regexp(t, expectedErr, err.Error(), "TestValidateDevfileSchema(): Error message should match")
 		}
 	})
 }

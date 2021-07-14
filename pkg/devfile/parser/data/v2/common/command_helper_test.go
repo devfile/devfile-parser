@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 
@@ -112,7 +113,7 @@ func TestGetGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			commandGroup := GetGroup(tt.command)
 			if !reflect.DeepEqual(commandGroup, tt.want) {
-				t.Errorf("expected %v, actual %v", tt.want, commandGroup)
+				t.Errorf("TestGetGroup() error: expected %v, actual %v", tt.want, commandGroup)
 			}
 		})
 	}
@@ -158,7 +159,7 @@ func TestGetExecComponent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			component := GetExecComponent(tt.command)
 			if component != tt.want {
-				t.Errorf("expected %v, actual %v", tt.want, component)
+				t.Errorf("TestGetExecComponent() error: expected %v, actual %v", tt.want, component)
 			}
 		})
 	}
@@ -204,7 +205,7 @@ func TestGetExecCommandLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			commandLine := GetExecCommandLine(tt.command)
 			if commandLine != tt.want {
-				t.Errorf("expected %v, actual %v", tt.want, commandLine)
+				t.Errorf("TestGetExecCommandLine() error: expected %v, actual %v", tt.want, commandLine)
 			}
 		})
 	}
@@ -250,7 +251,7 @@ func TestGetExecWorkingDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			workingDir := GetExecWorkingDir(tt.command)
 			if workingDir != tt.want {
-				t.Errorf("expected %v, actual %v", tt.want, workingDir)
+				t.Errorf("TestGetExecWorkingDir() error: expected %v, actual %v", tt.want, workingDir)
 			}
 		})
 	}
@@ -259,10 +260,12 @@ func TestGetExecWorkingDir(t *testing.T) {
 
 func TestGetCommandType(t *testing.T) {
 
+	cmdTypeErr := "unknown command type"
+
 	tests := []struct {
 		name        string
 		command     v1.Command
-		wantErr     bool
+		wantErr     *string
 		commandType v1.CommandType
 	}{
 		{
@@ -274,7 +277,6 @@ func TestGetCommandType(t *testing.T) {
 				},
 			},
 			commandType: v1.ExecCommandType,
-			wantErr:     false,
 		},
 		{
 			name: "Composite command",
@@ -285,7 +287,6 @@ func TestGetCommandType(t *testing.T) {
 				},
 			},
 			commandType: v1.CompositeCommandType,
-			wantErr:     false,
 		},
 		{
 			name: "Apply command",
@@ -296,7 +297,6 @@ func TestGetCommandType(t *testing.T) {
 				},
 			},
 			commandType: v1.ApplyCommandType,
-			wantErr:     false,
 		},
 		{
 			name: "Custom command",
@@ -307,7 +307,6 @@ func TestGetCommandType(t *testing.T) {
 				},
 			},
 			commandType: v1.CustomCommandType,
-			wantErr:     false,
 		},
 		{
 			name: "Unknown command",
@@ -315,17 +314,19 @@ func TestGetCommandType(t *testing.T) {
 				Id:           "unknown",
 				CommandUnion: v1.CommandUnion{},
 			},
-			wantErr: true,
+			wantErr: &cmdTypeErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := GetCommandType(tt.command)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetCommandType() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestGetCommandType() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && got != tt.commandType {
-				t.Errorf("TestGetCommandType error: command type mismatch, expected: %v got: %v", tt.commandType, got)
+				t.Errorf("TestGetCommandType() error: command type mismatch, expected: %v got: %v", tt.commandType, got)
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestGetCommandType(): Error message should match")
 			}
 		})
 	}
@@ -401,7 +402,7 @@ func TestGetCommandsFromEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			commands := GetCommandsFromEvent(commandsMap, tt.eventName)
 			if !reflect.DeepEqual(tt.wantCommands, commands) {
-				t.Errorf("TestGetCommandsFromEvent error - got %v expected %v", commands, tt.wantCommands)
+				t.Errorf("TestGetCommandsFromEvent() error: got %v expected %v", commands, tt.wantCommands)
 			}
 		})
 	}

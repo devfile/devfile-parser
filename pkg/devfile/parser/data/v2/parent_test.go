@@ -9,9 +9,6 @@ import (
 
 func TestDevfile200_SetParent(t *testing.T) {
 
-	type args struct {
-		name string
-	}
 	tests := []struct {
 		name              string
 		parent            *v1.Parent
@@ -47,7 +44,7 @@ func TestDevfile200_SetParent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.devfilev2.SetParent(tt.parent)
 			if !reflect.DeepEqual(tt.devfilev2, tt.expectedDevfilev2) {
-				t.Errorf("TestDevfile200_SetParent() expected %v, got %v", tt.expectedDevfilev2, tt.devfilev2)
+				t.Errorf("TestDevfile200_SetParent() error: expected %v, got %v", tt.expectedDevfilev2, tt.devfilev2)
 			}
 		})
 	}

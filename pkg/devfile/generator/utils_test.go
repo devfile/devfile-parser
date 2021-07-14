@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"github.com/stretchr/testify/assert"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -86,7 +87,7 @@ func TestConvertEnvs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			envVars := convertEnvs(tt.envVars)
 			if !reflect.DeepEqual(tt.want, envVars) {
-				t.Errorf("expected %v, wanted %v", envVars, tt.want)
+				t.Errorf("TestConvertEnvs() error: expected %v, wanted %v", envVars, tt.want)
 			}
 		})
 	}
@@ -152,7 +153,7 @@ func TestConvertPorts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ports := convertPorts(tt.endpoints)
 			if !reflect.DeepEqual(tt.want, ports) {
-				t.Errorf("expected %v, wanted %v", ports, tt.want)
+				t.Errorf("TestConvertPorts() error: expected %v, wanted %v", ports, tt.want)
 			}
 		})
 	}
@@ -162,7 +163,7 @@ func TestGetResourceReqs(t *testing.T) {
 	limit := "1024Mi"
 	quantity, err := resource.ParseQuantity(limit)
 	if err != nil {
-		t.Errorf("expected %v", err)
+		t.Errorf("TestGetResourceReqs() unexpected error: %v", err)
 	}
 	tests := []struct {
 		name      string
@@ -212,7 +213,7 @@ func TestGetResourceReqs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := getResourceReqs(tt.component)
 			if !reflect.DeepEqual(tt.want, req) {
-				t.Errorf("expected %v, wanted %v", req, tt.want)
+				t.Errorf("TestGetResourceReqs() error: expected %v, wanted %v", req, tt.want)
 			}
 		})
 	}
@@ -243,12 +244,12 @@ func TestAddSyncRootFolder(t *testing.T) {
 			syncRootFolder := addSyncRootFolder(&container, tt.sourceMapping)
 
 			if syncRootFolder != tt.wantSyncRootFolder {
-				t.Errorf("TestAddSyncRootFolder sync root folder error - expected %v got %v", tt.wantSyncRootFolder, syncRootFolder)
+				t.Errorf("TestAddSyncRootFolder() sync root folder error: expected %v got %v", tt.wantSyncRootFolder, syncRootFolder)
 			}
 
 			for _, env := range container.Env {
 				if env.Name == EnvProjectsRoot && env.Value != tt.wantSyncRootFolder {
-					t.Errorf("PROJECT_ROOT error expected %s, actual %s", tt.wantSyncRootFolder, env.Value)
+					t.Errorf("TestAddSyncRootFolder() PROJECT_ROOT error: expected %s, actual %s", tt.wantSyncRootFolder, env.Value)
 				}
 			}
 		})
@@ -262,17 +263,19 @@ func TestAddSyncFolder(t *testing.T) {
 	invalidClonePaths := []string{"/var", "../var", "pkg/../../var"}
 	sourceVolumePath := "/projects/app"
 
+	absoluteClonePathErr := "the clonePath .* in the devfile project .* must be a relative path"
+	escapeClonePathErr := "the clonePath .* in the devfile project .* cannot escape the value defined by [$]PROJECTS_ROOT. Please avoid using \"..\" in clonePath"
+
 	tests := []struct {
 		name     string
 		projects []v1.Project
 		want     string
-		wantErr  bool
+		wantErr  *string
 	}{
 		{
 			name:     "No projects",
 			projects: []v1.Project{},
 			want:     sourceVolumePath,
-			wantErr:  false,
 		},
 		{
 			name: "One project",
@@ -288,8 +291,7 @@ func TestAddSyncFolder(t *testing.T) {
 					},
 				},
 			},
-			want:    filepath.ToSlash(filepath.Join(sourceVolumePath, projectNames[0])),
-			wantErr: false,
+			want: filepath.ToSlash(filepath.Join(sourceVolumePath, projectNames[0])),
 		},
 		{
 			name: "Multiple projects",
@@ -313,8 +315,7 @@ func TestAddSyncFolder(t *testing.T) {
 					},
 				},
 			},
-			want:    filepath.ToSlash(filepath.Join(sourceVolumePath, projectNames[0])),
-			wantErr: false,
+			want: filepath.ToSlash(filepath.Join(sourceVolumePath, projectNames[0])),
 		},
 		{
 			name: "Clone path set",
@@ -329,8 +330,7 @@ func TestAddSyncFolder(t *testing.T) {
 					},
 				},
 			},
-			want:    filepath.ToSlash(filepath.Join(sourceVolumePath, projectClonePath)),
-			wantErr: false,
+			want: filepath.ToSlash(filepath.Join(sourceVolumePath, projectClonePath)),
 		},
 		{
 			name: "Invalid clone path, set with absolute path",
@@ -348,7 +348,7 @@ func TestAddSyncFolder(t *testing.T) {
 				},
 			},
 			want:    "",
-			wantErr: true,
+			wantErr: &absoluteClonePathErr,
 		},
 		{
 			name: "Invalid clone path, starts with ..",
@@ -366,7 +366,7 @@ func TestAddSyncFolder(t *testing.T) {
 				},
 			},
 			want:    "",
-			wantErr: true,
+			wantErr: &escapeClonePathErr,
 		},
 		{
 			name: "Invalid clone path, contains ..",
@@ -382,7 +382,7 @@ func TestAddSyncFolder(t *testing.T) {
 				},
 			},
 			want:    "",
-			wantErr: true,
+			wantErr: &escapeClonePathErr,
 		},
 	}
 	for _, tt := range tests {
@@ -391,14 +391,16 @@ func TestAddSyncFolder(t *testing.T) {
 
 			err := addSyncFolder(&container, sourceVolumePath, tt.projects)
 
-			if !tt.wantErr == (err != nil) {
-				t.Errorf("expected %v, actual %v", tt.wantErr, err)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestAddSyncFolder() error: unexpected error %v, want %v", err, tt.wantErr)
 			} else if err == nil {
 				for _, env := range container.Env {
 					if env.Name == EnvProjectsSrc && env.Value != tt.want {
-						t.Errorf("expected %s, actual %s", tt.want, env.Value)
+						t.Errorf("TestAddSyncFolder() error: expected %s, actual %s", tt.want, env.Value)
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestAddSyncFolder(): Error message should match")
 			}
 		})
 	}
@@ -466,63 +468,63 @@ func TestGetContainer(t *testing.T) {
 			container := getContainer(containerParams)
 
 			if container.Name != tt.containerName {
-				t.Errorf("expected %s, actual %s", tt.containerName, container.Name)
+				t.Errorf("TestGetContainer() error: expected containerName %s, actual %s", tt.containerName, container.Name)
 			}
 
 			if container.Image != tt.image {
-				t.Errorf("expected %s, actual %s", tt.image, container.Image)
+				t.Errorf("TestGetContainer() error: expected image %s, actual %s", tt.image, container.Image)
 			}
 
 			if tt.isPrivileged {
 				if *container.SecurityContext.Privileged != tt.isPrivileged {
-					t.Errorf("expected %t, actual %t", tt.isPrivileged, *container.SecurityContext.Privileged)
+					t.Errorf("TestGetContainer() error: expected isPrivileged %t, actual %t", tt.isPrivileged, *container.SecurityContext.Privileged)
 				}
 			} else if tt.isPrivileged == false && container.SecurityContext != nil {
 				t.Errorf("expected security context to be nil but it was defined")
 			}
 
 			if len(container.Command) != len(tt.command) {
-				t.Errorf("expected %d, actual %d", len(tt.command), len(container.Command))
+				t.Errorf("TestGetContainer() error: expected command length %d, actual %d", len(tt.command), len(container.Command))
 			} else {
 				for i := range container.Command {
 					if container.Command[i] != tt.command[i] {
-						t.Errorf("expected %s, actual %s", tt.command[i], container.Command[i])
+						t.Errorf("TestGetContainer() error: expected command %s, actual %s", tt.command[i], container.Command[i])
 					}
 				}
 			}
 
 			if len(container.Args) != len(tt.args) {
-				t.Errorf("expected %d, actual %d", len(tt.args), len(container.Args))
+				t.Errorf("TestGetContainer() error: expected container args length %d, actual %d", len(tt.args), len(container.Args))
 			} else {
 				for i := range container.Args {
 					if container.Args[i] != tt.args[i] {
-						t.Errorf("expected %s, actual %s", tt.args[i], container.Args[i])
+						t.Errorf("TestGetContainer() error: expected container args %s, actual %s", tt.args[i], container.Args[i])
 					}
 				}
 			}
 
 			if len(container.Env) != len(tt.envVars) {
-				t.Errorf("expected %d, actual %d", len(tt.envVars), len(container.Env))
+				t.Errorf("TestGetContainer() error: expected container env length %d, actual %d", len(tt.envVars), len(container.Env))
 			} else {
 				for i := range container.Env {
 					if container.Env[i].Name != tt.envVars[i].Name {
-						t.Errorf("expected name %s, actual name %s", tt.envVars[i].Name, container.Env[i].Name)
+						t.Errorf("TestGetContainer() error: expected env name %s, actual %s", tt.envVars[i].Name, container.Env[i].Name)
 					}
 					if container.Env[i].Value != tt.envVars[i].Value {
-						t.Errorf("expected value %s, actual value %s", tt.envVars[i].Value, container.Env[i].Value)
+						t.Errorf("TestGetContainer() error: expected env value %s, actual %s", tt.envVars[i].Value, container.Env[i].Value)
 					}
 				}
 			}
 
 			if len(container.Ports) != len(tt.ports) {
-				t.Errorf("expected %d, actual %d", len(tt.ports), len(container.Ports))
+				t.Errorf("TestGetContainer() error: expected container port length %d, actual %d", len(tt.ports), len(container.Ports))
 			} else {
 				for i := range container.Ports {
 					if container.Ports[i].Name != tt.ports[i].Name {
-						t.Errorf("expected name %s, actual name %s", tt.ports[i].Name, container.Ports[i].Name)
+						t.Errorf("TestGetContainer() error: expected port name %s, actual %s", tt.ports[i].Name, container.Ports[i].Name)
 					}
 					if container.Ports[i].ContainerPort != tt.ports[i].ContainerPort {
-						t.Errorf("expected port number is %v, actual %v", tt.ports[i].ContainerPort, container.Ports[i].ContainerPort)
+						t.Errorf("TestGetContainer() error: expected port number %v, actual %v", tt.ports[i].ContainerPort, container.Ports[i].ContainerPort)
 					}
 				}
 			}
@@ -581,22 +583,22 @@ func TestGetPodTemplateSpec(t *testing.T) {
 			podTemplateSpec := getPodTemplateSpec(podTemplateSpecParams)
 
 			if podTemplateSpec.Name != tt.podName {
-				t.Errorf("expected %s, actual %s", tt.podName, podTemplateSpec.Name)
+				t.Errorf("TestGetPodTemplateSpec() error: expected podName %s, actual %s", tt.podName, podTemplateSpec.Name)
 			}
 			if podTemplateSpec.Namespace != tt.namespace {
-				t.Errorf("expected %s, actual %s", tt.namespace, podTemplateSpec.Namespace)
+				t.Errorf("TestGetPodTemplateSpec() error: expected namespace %s, actual %s", tt.namespace, podTemplateSpec.Namespace)
 			}
 			if !hasVolumeWithName("vol1", podTemplateSpec.Spec.Volumes) {
-				t.Errorf("volume with name: %s not found", "vol1")
+				t.Errorf("TestGetPodTemplateSpec() error: volume with name: %s not found", "vol1")
 			}
 			if !reflect.DeepEqual(podTemplateSpec.Labels, tt.labels) {
-				t.Errorf("expected %+v, actual %+v", tt.labels, podTemplateSpec.Labels)
+				t.Errorf("TestGetPodTemplateSpec() error: expected labels %+v, actual %+v", tt.labels, podTemplateSpec.Labels)
 			}
 			if !reflect.DeepEqual(podTemplateSpec.Spec.Containers, container) {
-				t.Errorf("expected %+v, actual %+v", container, podTemplateSpec.Spec.Containers)
+				t.Errorf("TestGetPodTemplateSpec() error: expected container %+v, actual %+v", container, podTemplateSpec.Spec.Containers)
 			}
 			if !reflect.DeepEqual(podTemplateSpec.Spec.InitContainers, container) {
-				t.Errorf("expected %+v, actual %+v", container, podTemplateSpec.Spec.InitContainers)
+				t.Errorf("TestGetPodTemplateSpec() error: expected InitContainers %+v, actual %+v", container, podTemplateSpec.Spec.InitContainers)
 			}
 		})
 	}
@@ -613,7 +615,6 @@ func TestGetServiceSpec(t *testing.T) {
 		labels              map[string]string
 		filterOptions       common.DevfileOptions
 		wantPorts           []corev1.ServicePort
-		wantErr             bool
 	}{
 		{
 			name: "multiple endpoints share the same port",
@@ -644,7 +645,6 @@ func TestGetServiceSpec(t *testing.T) {
 					TargetPort: intstr.FromInt(8080),
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "multiple endpoints have different ports",
@@ -682,7 +682,6 @@ func TestGetServiceSpec(t *testing.T) {
 					TargetPort: intstr.FromInt(9090),
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "filter components",
@@ -728,7 +727,6 @@ func TestGetServiceSpec(t *testing.T) {
 					TargetPort: intstr.FromInt(9090),
 				},
 			},
-			wantErr: false,
 			filteredComponents: []v1.Component{
 				{
 					Name: "testcontainer2",
@@ -782,21 +780,21 @@ func TestGetServiceSpec(t *testing.T) {
 			serviceSpec, err := getServiceSpec(devObj, tt.labels, tt.filterOptions)
 
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetServiceSpec() error = %v, wantErr %v", err, tt.wantErr)
-			} else if err == nil {
+			if err != nil {
+				t.Errorf("TestGetServiceSpec() unexpected error: %v", err)
+			} else {
 				if !reflect.DeepEqual(serviceSpec.Selector, tt.labels) {
-					t.Errorf("expected service selector is %v, actual %v", tt.labels, serviceSpec.Selector)
+					t.Errorf("TestGetServiceSpec() error: expected service selector is %v, actual %v", tt.labels, serviceSpec.Selector)
 				}
 				if len(serviceSpec.Ports) != len(tt.wantPorts) {
-					t.Errorf("expected service ports length is %v, actual %v", len(tt.wantPorts), len(serviceSpec.Ports))
+					t.Errorf("TestGetServiceSpec() error: expected service ports length is %v, actual %v", len(tt.wantPorts), len(serviceSpec.Ports))
 				} else {
 					for i := range serviceSpec.Ports {
 						if serviceSpec.Ports[i].Name != tt.wantPorts[i].Name {
-							t.Errorf("expected name %s, actual name %s", tt.wantPorts[i].Name, serviceSpec.Ports[i].Name)
+							t.Errorf("TestGetServiceSpec() error: expected name %s, actual name %s", tt.wantPorts[i].Name, serviceSpec.Ports[i].Name)
 						}
 						if serviceSpec.Ports[i].Port != tt.wantPorts[i].Port {
-							t.Errorf("expected port number is %v, actual %v", tt.wantPorts[i].Port, serviceSpec.Ports[i].Port)
+							t.Errorf("TestGetServiceSpec() error: expected port number is %v, actual %v", tt.wantPorts[i].Port, serviceSpec.Ports[i].Port)
 						}
 					}
 				}
@@ -814,7 +812,6 @@ func TestGetPortExposure(t *testing.T) {
 		filteredComponents  []v1.Component
 		filterOptions       common.DevfileOptions
 		wantMap             map[int]v1.EndpointExposure
-		wantErr             bool
 	}{
 		{
 			name: "devfile has single container with single endpoint",
@@ -1120,7 +1117,6 @@ func TestGetPortExposure(t *testing.T) {
 					"firstStringWrong": "firstStringValue",
 				},
 			},
-			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -1147,10 +1143,10 @@ func TestGetPortExposure(t *testing.T) {
 
 			mapCreated, err := getPortExposure(devObj, tt.filterOptions)
 			// Checks for unexpected error cases
-			if !tt.wantErr == (err != nil) {
-				t.Errorf("TestGetPortExposure unexpected error %v, wantErr %v", err, tt.wantErr)
-			} else if err == nil && !reflect.DeepEqual(mapCreated, tt.wantMap) {
-				t.Errorf("TestGetPortExposure Expected: %v, got %v", tt.wantMap, mapCreated)
+			if err != nil {
+				t.Errorf("TestGetPortExposure() unexpected error: %v", err)
+			} else if !reflect.DeepEqual(mapCreated, tt.wantMap) {
+				t.Errorf("TestGetPortExposure() error: expected: %v, got %v", tt.wantMap, mapCreated)
 			}
 
 		})
@@ -1183,19 +1179,19 @@ func TestGetIngressSpec(t *testing.T) {
 			ingressSpec := getIngressSpec(tt.parameter)
 
 			if ingressSpec.Rules[0].Host != tt.parameter.IngressDomain {
-				t.Errorf("expected %s, actual %s", tt.parameter.IngressDomain, ingressSpec.Rules[0].Host)
+				t.Errorf("TestGetIngressSpec() error: expected ingressDomain %s, actual %s", tt.parameter.IngressDomain, ingressSpec.Rules[0].Host)
 			}
 
 			if ingressSpec.Rules[0].HTTP.Paths[0].Backend.ServicePort != tt.parameter.PortNumber {
-				t.Errorf("expected %v, actual %v", tt.parameter.PortNumber, ingressSpec.Rules[0].HTTP.Paths[0].Backend.ServicePort)
+				t.Errorf("TestGetIngressSpec() error: expected portNumber %v, actual %v", tt.parameter.PortNumber, ingressSpec.Rules[0].HTTP.Paths[0].Backend.ServicePort)
 			}
 
 			if ingressSpec.Rules[0].HTTP.Paths[0].Backend.ServiceName != tt.parameter.ServiceName {
-				t.Errorf("expected %s, actual %s", tt.parameter.ServiceName, ingressSpec.Rules[0].HTTP.Paths[0].Backend.ServiceName)
+				t.Errorf("TestGetIngressSpec() error: expected serviceName %s, actual %s", tt.parameter.ServiceName, ingressSpec.Rules[0].HTTP.Paths[0].Backend.ServiceName)
 			}
 
 			if ingressSpec.TLS[0].SecretName != tt.parameter.TLSSecretName {
-				t.Errorf("expected %s, actual %s", tt.parameter.TLSSecretName, ingressSpec.TLS[0].SecretName)
+				t.Errorf("TestGetIngressSpec() error: expected TLSSecretName %s, actual %s", tt.parameter.TLSSecretName, ingressSpec.TLS[0].SecretName)
 			}
 
 		})
@@ -1227,19 +1223,19 @@ func TestGetNetworkingV1IngressSpec(t *testing.T) {
 			ingressSpec := getNetworkingV1IngressSpec(tt.parameter)
 
 			if ingressSpec.Rules[0].Host != tt.parameter.IngressDomain {
-				t.Errorf("expected %s, actual %s", tt.parameter.IngressDomain, ingressSpec.Rules[0].Host)
+				t.Errorf("TestGetNetworkingV1IngressSpec() error: expected IngressDomain %s, actual %s", tt.parameter.IngressDomain, ingressSpec.Rules[0].Host)
 			}
 
 			if ingressSpec.Rules[0].HTTP.Paths[0].Backend.Service.Port.Number != tt.parameter.PortNumber.IntVal {
-				t.Errorf("expected %v, actual %v", tt.parameter.PortNumber, ingressSpec.Rules[0].HTTP.Paths[0].Backend.Service.Port.Number)
+				t.Errorf("TestGetNetworkingV1IngressSpec() error: expected PortNumber %v, actual %v", tt.parameter.PortNumber, ingressSpec.Rules[0].HTTP.Paths[0].Backend.Service.Port.Number)
 			}
 
 			if ingressSpec.Rules[0].HTTP.Paths[0].Backend.Service.Name != tt.parameter.ServiceName {
-				t.Errorf("expected %s, actual %s", tt.parameter.ServiceName, ingressSpec.Rules[0].HTTP.Paths[0].Backend.Service.Name)
+				t.Errorf("TestGetNetworkingV1IngressSpec() error: expected ServiceName %s, actual %s", tt.parameter.ServiceName, ingressSpec.Rules[0].HTTP.Paths[0].Backend.Service.Name)
 			}
 
 			if ingressSpec.TLS[0].SecretName != tt.parameter.TLSSecretName {
-				t.Errorf("expected %s, actual %s", tt.parameter.TLSSecretName, ingressSpec.TLS[0].SecretName)
+				t.Errorf("TestGetNetworkingV1IngressSpec() error: expected TLSSecretName %s, actual %s", tt.parameter.TLSSecretName, ingressSpec.TLS[0].SecretName)
 			}
 
 		})
@@ -1282,19 +1278,19 @@ func TestGetRouteSpec(t *testing.T) {
 			routeSpec := getRouteSpec(tt.parameter)
 
 			if routeSpec.Port.TargetPort != tt.parameter.PortNumber {
-				t.Errorf("expected %v, actual %v", tt.parameter.PortNumber, routeSpec.Port.TargetPort)
+				t.Errorf("TestGetRouteSpec() error: expected PortNumber %v, actual %v", tt.parameter.PortNumber, routeSpec.Port.TargetPort)
 			}
 
 			if routeSpec.To.Name != tt.parameter.ServiceName {
-				t.Errorf("expected %s, actual %s", tt.parameter.ServiceName, routeSpec.To.Name)
+				t.Errorf("TestGetRouteSpec() error: expected ServiceName %s, actual %s", tt.parameter.ServiceName, routeSpec.To.Name)
 			}
 
 			if routeSpec.Path != tt.parameter.Path {
-				t.Errorf("expected %s, actual %s", tt.parameter.Path, routeSpec.Path)
+				t.Errorf("TestGetRouteSpec() error: expected Path %s, actual %s", tt.parameter.Path, routeSpec.Path)
 			}
 
 			if (routeSpec.TLS != nil) != tt.parameter.Secure {
-				t.Errorf("the route TLS does not match secure level %v", tt.parameter.Secure)
+				t.Errorf("TestGetRouteSpec() error: the route TLS does not match secure level %v", tt.parameter.Secure)
 			}
 
 		})
@@ -1326,16 +1322,16 @@ func TestGetPVCSpec(t *testing.T) {
 			quantity, err := resource.ParseQuantity(tt.size)
 			// Checks for unexpected error cases
 			if !tt.wantErr == (err != nil) {
-				t.Errorf("resource.ParseQuantity unexpected error %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("TestGetPVCSpec() error: resource.ParseQuantity unexpected error %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				pvcSpec := getPVCSpec(quantity)
 				if pvcSpec.AccessModes[0] != corev1.ReadWriteOnce {
-					t.Errorf("AccessMode Error: expected %s, actual %s", corev1.ReadWriteMany, pvcSpec.AccessModes[0])
+					t.Errorf("TestGetPVCSpec() error: AccessMode Error: expected %s, actual %s", corev1.ReadWriteMany, pvcSpec.AccessModes[0])
 				}
 
 				pvcSpecQuantity := pvcSpec.Resources.Requests["storage"]
 				if pvcSpecQuantity.String() != quantity.String() {
-					t.Errorf("pvcSpec.Resources.Requests Error: expected %v, actual %v", pvcSpecQuantity.String(), quantity.String())
+					t.Errorf("TestGetPVCSpec() error: pvcSpec.Resources.Requests Error: expected %v, actual %v", pvcSpecQuantity.String(), quantity.String())
 				}
 			}
 		})
@@ -1390,15 +1386,15 @@ func TestGetBuildConfigSpec(t *testing.T) {
 			buildConfigSpec := getBuildConfigSpec(params)
 
 			if !strings.Contains(buildConfigSpec.CommonSpec.Output.To.Name, image) {
-				t.Error("TestGetBuildConfigSpec error - build config output name does not match")
+				t.Error("TestGetBuildConfigSpec() error: build config output name does not match")
 			}
 
 			if buildConfigSpec.Source.Git.Ref != tt.GitRef || buildConfigSpec.Source.Git.URI != tt.GitURL {
-				t.Error("TestGetBuildConfigSpec error - build config git source does not match")
+				t.Error("TestGetBuildConfigSpec() error: build config git source does not match")
 			}
 
 			if buildConfigSpec.CommonSpec.Source.ContextDir != tt.ContextDir {
-				t.Error("TestGetBuildConfigSpec error - context dir does not match")
+				t.Error("TestGetBuildConfigSpec() error: context dir does not match")
 			}
 		})
 	}
@@ -1424,11 +1420,11 @@ func TestGetPVC(t *testing.T) {
 			volume := getPVC(tt.volumeName, tt.pvc)
 
 			if volume.Name != tt.volumeName {
-				t.Errorf("TestGetPVC error: volume name does not match; expected %s got %s", tt.volumeName, volume.Name)
+				t.Errorf("TestGetPVC() error: volume name does not match; expected %s got %s", tt.volumeName, volume.Name)
 			}
 
 			if volume.PersistentVolumeClaim.ClaimName != tt.pvc {
-				t.Errorf("TestGetPVC error: pvc name does not match; expected %s got %s", tt.pvc, volume.PersistentVolumeClaim.ClaimName)
+				t.Errorf("TestGetPVC() error: pvc name does not match; expected %s got %s", tt.pvc, volume.PersistentVolumeClaim.ClaimName)
 			}
 		})
 	}
@@ -1489,7 +1485,7 @@ func TestAddVolumeMountToContainers(t *testing.T) {
 			}
 
 			if mountPathCount != len(tt.containerMountPathsMap[tt.container.Name]) {
-				t.Errorf("Volume Mounts for %s have not been properly mounted to the container", tt.volumeName)
+				t.Errorf("TestAddVolumeMountToContainers() error: Volume Mounts for %s have not been properly mounted to the container", tt.volumeName)
 			}
 		})
 	}

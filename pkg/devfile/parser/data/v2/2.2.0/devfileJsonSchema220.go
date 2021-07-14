@@ -639,6 +639,21 @@ const JsonSchema220 = `{
       "description": "Optional metadata",
       "type": "object",
       "properties": {
+        "architectures": {
+          "description": "Optional list of processor architectures that the devfile supports, empty list suggests that the devfile can be used on any architecture",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "description": "Architecture describes the architecture type",
+            "type": "string",
+            "enum": [
+              "amd64",
+              "arm64",
+              "ppc64le",
+              "s390x"
+            ]
+          }
+        },
         "attributes": {
           "description": "Map of implementation-dependant free-form YAML attributes. Deprecated, use the top-level attributes field instead.",
           "type": "object",
@@ -1650,7 +1665,7 @@ const JsonSchema220 = `{
       }
     },
     "variables": {
-      "description": "Map of key-value variables used for string replacement in the devfile. Values can can be referenced via {{variable-key}} to replace the corresponding value in string fields in the devfile. Replacement cannot be used for\n\n - schemaVersion, metadata, parent source  - element identifiers, e.g. command id, component name, endpoint name, project name  - references to identifiers, e.g. in events, a command's component, container's volume mount name  - string enums, e.g. command group kind, endpoint exposure",
+      "description": "Map of key-value variables used for string replacement in the devfile. Values can be referenced via {{variable-key}} to replace the corresponding value in string fields in the devfile. Replacement cannot be used for\n\n - schemaVersion, metadata, parent source\n\n - element identifiers, e.g. command id, component name, endpoint name, project name\n\n - references to identifiers, e.g. in events, a command's component, container's volume mount name\n\n - string enums, e.g. command group kind, endpoint exposure",
       "type": "object",
       "additionalProperties": {
         "type": "string"

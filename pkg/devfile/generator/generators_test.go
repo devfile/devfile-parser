@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"strings"
 	"testing"
@@ -47,6 +48,8 @@ func TestGetContainers(t *testing.T) {
 		},
 	}
 
+	errMatches := "an expected error"
+
 	tests := []struct {
 		name                  string
 		containerComponents   []v1.Component
@@ -56,7 +59,7 @@ func TestGetContainers(t *testing.T) {
 		wantContainerImage    string
 		wantContainerEnv      []corev1.EnvVar
 		wantContainerVolMount []corev1.VolumeMount
-		wantErr               bool
+		wantErr               *string
 	}{
 		{
 			name: "Container with default project root",
@@ -202,6 +205,10 @@ func TestGetContainers(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "Simulating error case, check if error matches",
+			wantErr: &errMatches,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -221,6 +228,9 @@ func TestGetContainers(t *testing.T) {
 			} else {
 				mockGetComponents.Return(tt.filteredComponents, nil).AnyTimes()
 			}
+			if tt.wantErr != nil {
+				mockGetComponents.Return(nil, fmt.Errorf(*tt.wantErr))
+			}
 			mockDevfileData.EXPECT().GetProjects(common.DevfileOptions{}).Return(projects, nil).AnyTimes()
 
 			devObj := parser.DevfileObj{
@@ -229,23 +239,25 @@ func TestGetContainers(t *testing.T) {
 
 			containers, err := GetContainers(devObj, tt.filterOptions)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetContainers() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestGetContainers() error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				for _, container := range containers {
 					if container.Name != tt.wantContainerName {
-						t.Errorf("TestGetContainers error: Name mismatch - got: %s, wanted: %s", container.Name, tt.wantContainerName)
+						t.Errorf("TestGetContainers() error: Name mismatch - got: %s, wanted: %s", container.Name, tt.wantContainerName)
 					}
 					if container.Image != tt.wantContainerImage {
-						t.Errorf("TestGetContainers error: Image mismatch - got: %s, wanted: %s", container.Image, tt.wantContainerImage)
+						t.Errorf("TestGetContainers() error: Image mismatch - got: %s, wanted: %s", container.Image, tt.wantContainerImage)
 					}
 					if len(container.Env) > 0 && !reflect.DeepEqual(container.Env, tt.wantContainerEnv) {
-						t.Errorf("TestGetContainers error: Env mismatch - got: %+v, wanted: %+v", container.Env, tt.wantContainerEnv)
+						t.Errorf("TestGetContainers() error: Env mismatch - got: %+v, wanted: %+v", container.Env, tt.wantContainerEnv)
 					}
 					if len(container.VolumeMounts) > 0 && !reflect.DeepEqual(container.VolumeMounts, tt.wantContainerVolMount) {
-						t.Errorf("TestGetContainers error: Vol Mount mismatch - got: %+v, wanted: %+v", container.VolumeMounts, tt.wantContainerVolMount)
+						t.Errorf("TestGetContainers() error: Vol Mount mismatch - got: %+v, wanted: %+v", container.VolumeMounts, tt.wantContainerVolMount)
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestGetContainers(): Error message does not match")
 			}
 		})
 	}
@@ -259,12 +271,14 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 		volumeName string
 	}
 
+	errMatches := "an expected error"
+
 	tests := []struct {
 		name                string
 		components          []v1.Component
 		volumeNameToVolInfo map[string]VolumeInfo
 		wantContainerToVol  map[string][]testVolumeMountInfo
-		wantErr             bool
+		wantErr             *string
 	}{
 		{
 			name:       "One volume mounted",
@@ -289,7 +303,6 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "One volume mounted at diff locations",
@@ -332,7 +345,6 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "One volume mounted at diff container components",
@@ -388,12 +400,10 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
-			name:       "Invalid case simulating no container components",
-			components: nil,
-			wantErr:    true,
+			name:    "Simulating error case, check if error matches",
+			wantErr: &errMatches,
 		},
 	}
 
@@ -424,9 +434,9 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 				return
 			}
 
-			if tt.wantErr {
+			if tt.wantErr != nil {
 				// simulate error condition
-				mockGetComponents.Return(nil, fmt.Errorf("mock error"))
+				mockGetComponents.Return(nil, fmt.Errorf(*tt.wantErr))
 
 			}
 
@@ -436,8 +446,8 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 			}
 
 			pvcVols, err := GetVolumesAndVolumeMounts(devObj, volumeParams, common.DevfileOptions{})
-			if tt.wantErr == (err == nil) {
-				t.Errorf("TestGetVolumesAndVolumeMounts() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestGetVolumesAndVolumeMounts() error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				// check if the pvc volumes returned are correct
 				for _, volInfo := range tt.volumeNameToVolInfo {
@@ -449,14 +459,14 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 					}
 
 					if !matched {
-						t.Errorf("TestGetVolumesAndVolumeMounts error - could not find volume details %s in the actual result", volInfo.VolumeName)
+						t.Errorf("TestGetVolumesAndVolumeMounts() error: could not find volume details %s in the actual result", volInfo.VolumeName)
 					}
 				}
 
 				// check the volume mounts of the containers
 				for _, container := range containers {
 					if volMounts, ok := tt.wantContainerToVol[container.Name]; !ok {
-						t.Errorf("TestGetVolumesAndVolumeMounts error - did not find the expected container %s", container.Name)
+						t.Errorf("TestGetVolumesAndVolumeMounts() error: did not find the expected container %s", container.Name)
 						return
 					} else {
 						for _, expectedVolMount := range volMounts {
@@ -468,11 +478,13 @@ func TestGetVolumesAndVolumeMounts(t *testing.T) {
 							}
 
 							if !matched {
-								t.Errorf("TestGetVolumesAndVolumeMounts error - could not find volume mount details for path %s in the actual result for container %s", expectedVolMount.mountPath, container.Name)
+								t.Errorf("TestGetVolumesAndVolumeMounts() error: could not find volume mount details for path %s in the actual result for container %s", expectedVolMount.mountPath, container.Name)
 							}
 						}
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestGetVolumesAndVolumeMounts(): Error message does not match")
 			}
 		})
 	}
@@ -506,7 +518,7 @@ func TestGetVolumeMountPath(t *testing.T) {
 			path := GetVolumeMountPath(tt.volumeMount)
 
 			if path != tt.wantPath {
-				t.Errorf("TestGetVolumeMountPath error: mount path mismatch, expected: %v got: %v", tt.wantPath, path)
+				t.Errorf("TestGetVolumeMountPath() error: mount path mismatch, expected: %v got: %v", tt.wantPath, path)
 			}
 		})
 	}
@@ -584,12 +596,14 @@ func TestGetInitContainers(t *testing.T) {
 	longContainerName := "thisisaverylongcontainerandkuberneteshasalimitforanamesize-exec2"
 	trimmedLongContainerName := util.TruncateString(longContainerName, containerNameMaxLen)
 
+	errMatches := "an expected error"
+
 	tests := []struct {
 		name              string
 		eventCommands     []string
 		wantInitContainer map[string]corev1.Container
 		longName          bool
-		wantErr           bool
+		wantErr           *string
 	}{
 		{
 			name: "Composite and Exec events",
@@ -611,13 +625,13 @@ func TestGetInitContainers(t *testing.T) {
 			},
 		},
 		{
-			name: "Simulate error condition",
+			name: "Simulate error case, check if error matches",
 			eventCommands: []string{
 				"apply1",
 				"apply3",
 				"apply2",
 			},
-			wantErr: true,
+			wantErr: &errMatches,
 		},
 		{
 			name: "Long Container Name",
@@ -662,8 +676,8 @@ func TestGetInitContainers(t *testing.T) {
 			mockDevfileData.EXPECT().GetEvents().Return(preStartEvents).AnyTimes()
 			mockGetCommands.Return(append(applyCommands, compCommands...), nil).AnyTimes()
 
-			if tt.wantErr {
-				mockGetCommands.Return(nil, fmt.Errorf("mock error")).AnyTimes()
+			if tt.wantErr != nil {
+				mockGetCommands.Return(nil, fmt.Errorf(*tt.wantErr)).AnyTimes()
 			}
 
 			devObj := parser.DevfileObj{
@@ -671,9 +685,10 @@ func TestGetInitContainers(t *testing.T) {
 			}
 
 			initContainers, err := GetInitContainers(devObj)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestGetInitContainers() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestGetInitContainers() error: %v, wantErr %v", err, tt.wantErr)
 			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestGetInitContainers: Error message does not match")
 				return
 			}
 

@@ -3,6 +3,7 @@ package parser
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -93,6 +94,17 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 		},
 	}
 
+	parentCmdAlreadyDefinedErr := "Some Commands are already defined in parent.* If you want to override them, you should do it in the parent scope."
+	parentCmpAlreadyDefinedErr := "Some Components are already defined in parent.* If you want to override them, you should do it in the parent scope."
+	parentProjectAlreadyDefinedErr := "Some Projects are already defined in parent.* If you want to override them, you should do it in the parent scope."
+	pluginCmdAlreadyDefinedErr := "Some Commands are already defined in plugin.* If you want to override them, you should do it in the plugin scope."
+	pluginCmpAlreadyDefinedErr := "Some Components are already defined in plugin.* If you want to override them, you should do it in the plugin scope."
+	pluginProjectAlreadyDefinedErr := "Some Projects are already defined in plugin.* If you want to override them, you should do it in the plugin scope."
+	newCmdErr := "Some Commands do not override any existing element.* They should be defined in the main body, as new elements, not in the overriding section"
+	newCmpErr := "Some Components do not override any existing element.* They should be defined in the main body, as new elements, not in the overriding section"
+	newProjectErr := "Some Projects do not override any existing element.* They should be defined in the main body, as new elements, not in the overriding section"
+	importCycleErr := "devfile has an cycle in references: main devfile -> .*"
+
 	type args struct {
 		devFileObj DevfileObj
 	}
@@ -103,7 +115,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 		pluginDevfile          DevfileObj
 		pluginOverride         v1.PluginOverrides
 		wantDevFile            DevfileObj
-		wantErr                bool
+		wantErr                []string
 		testRecursiveReference bool
 	}{
 		{
@@ -270,7 +282,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			},
 		},
 		{
-			name: "handle a parent'data without any local override and add the local devfile's data",
+			name: "handle a parent's data without any local override and add the local devfile's data",
 			args: args{
 				devFileObj: DevfileObj{
 					Ctx: devfileCtx.NewDevfileCtx(OutputDevfileYamlPath),
@@ -464,7 +476,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{newCmpErr, newCmdErr, newProjectErr},
 		},
 		{
 			name: "error out if the same parent command is defined again in the local devfile",
@@ -517,7 +529,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{parentCmdAlreadyDefinedErr},
 		},
 		{
 			name: "error out if the same parent component is defined again in the local devfile",
@@ -574,7 +586,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{parentCmpAlreadyDefinedErr},
 		},
 		{
 			name: "should not have error if the same event is defined again in the local devfile",
@@ -646,6 +658,15 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 										{
 											ClonePath: "/projects",
 											Name:      "nodejs-starter-build",
+											ProjectSource: v1.ProjectSource{
+												Git: &v1.GitProjectSource{
+													GitLikeProjectSource: v1.GitLikeProjectSource{
+														Remotes: map[string]string{
+															"origin": "url",
+														},
+													},
+												},
+											},
 										},
 									},
 								},
@@ -666,6 +687,15 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 									{
 										ClonePath: "/projects",
 										Name:      "nodejs-starter-build",
+										ProjectSource: v1.ProjectSource{
+											Git: &v1.GitProjectSource{
+												GitLikeProjectSource: v1.GitLikeProjectSource{
+													Remotes: map[string]string{
+														"origin": "url",
+													},
+												},
+											},
+										},
 									},
 								},
 							},
@@ -676,7 +706,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{parentProjectAlreadyDefinedErr},
 		},
 		{
 			name: "it should merge the plugin's uri data and add the local devfile's data",
@@ -1120,7 +1150,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{newCmdErr},
 		},
 		{
 			name: "error out if the same plugin command is defined again in the local devfile",
@@ -1173,7 +1203,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{pluginCmdAlreadyDefinedErr},
 		},
 		{
 			name: "error out if the same plugin component is defined again in the local devfile",
@@ -1230,7 +1260,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{pluginCmpAlreadyDefinedErr},
 		},
 		{
 			name: "error out if the plugin project is defined again in the local devfile",
@@ -1245,6 +1275,15 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 										{
 											ClonePath: "/projects",
 											Name:      "nodejs-starter-build",
+											ProjectSource: v1.ProjectSource{
+												Git: &v1.GitProjectSource{
+													GitLikeProjectSource: v1.GitLikeProjectSource{
+														Remotes: map[string]string{
+															"origin": "url",
+														},
+													},
+												},
+											},
 										},
 									},
 								},
@@ -1265,6 +1304,15 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 									{
 										ClonePath: "/projects",
 										Name:      "nodejs-starter-build",
+										ProjectSource: v1.ProjectSource{
+											Git: &v1.GitProjectSource{
+												GitLikeProjectSource: v1.GitLikeProjectSource{
+													Remotes: map[string]string{
+														"origin": "url",
+													},
+												},
+											},
+										},
 									},
 								},
 							},
@@ -1275,7 +1323,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{pluginProjectAlreadyDefinedErr},
 		},
 		{
 			name: "error out if the same project is defined in the both plugin devfile and parent",
@@ -1290,6 +1338,15 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 										{
 											ClonePath: "/projects",
 											Name:      "nodejs-starter-build",
+											ProjectSource: v1.ProjectSource{
+												Git: &v1.GitProjectSource{
+													GitLikeProjectSource: v1.GitLikeProjectSource{
+														Remotes: map[string]string{
+															"origin": "url",
+														},
+													},
+												},
+											},
 										},
 									},
 								},
@@ -1310,6 +1367,15 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 									{
 										ClonePath: "/projects",
 										Name:      "nodejs-starter",
+										ProjectSource: v1.ProjectSource{
+											Git: &v1.GitProjectSource{
+												GitLikeProjectSource: v1.GitLikeProjectSource{
+													Remotes: map[string]string{
+														"origin": "url",
+													},
+												},
+											},
+										},
 									},
 								},
 							},
@@ -1329,6 +1395,15 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 									{
 										ClonePath: "/projects",
 										Name:      "nodejs-starter",
+										ProjectSource: v1.ProjectSource{
+											Git: &v1.GitProjectSource{
+												GitLikeProjectSource: v1.GitLikeProjectSource{
+													Remotes: map[string]string{
+														"origin": "url",
+													},
+												},
+											},
+										},
 									},
 								},
 							},
@@ -1339,7 +1414,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{pluginProjectAlreadyDefinedErr},
 		},
 		{
 			name: "error out if the same command is defined in both plugin devfile and parent devfile",
@@ -1415,7 +1490,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{pluginCmdAlreadyDefinedErr},
 		},
 		{
 			name: "error out if the same component is defined in both plugin devfile and parent devfile",
@@ -1497,7 +1572,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{pluginCmpAlreadyDefinedErr},
 		},
 		{
 			name: "it should override the requested parent's data and plugin's data, and add the local devfile's data",
@@ -1813,7 +1888,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{pluginCmpAlreadyDefinedErr},
 		},
 		{
 			name: "it should override with no errors if the plugin component is defined with a different component type in the plugin override",
@@ -1887,7 +1962,6 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "error out if the parent component is defined with a different component type in the local devfile",
@@ -1944,7 +2018,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr: true,
+			wantErr: []string{parentCmpAlreadyDefinedErr},
 		},
 		{
 			name: "it should override with no errors if the parent component is defined with a different component type in the parent override",
@@ -2023,7 +2097,6 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "error out if the URI is recursively referenced",
@@ -2070,7 +2143,7 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			wantDevFile: DevfileObj{
 				Data: &v2.DevfileV2{},
 			},
-			wantErr:                true,
+			wantErr:                []string{importCycleErr},
 			testRecursiveReference: true,
 		},
 	}
@@ -2082,17 +2155,17 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 				parentTestServer = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					data, err := yaml.Marshal(tt.parentDevfile.Data)
 					if err != nil {
-						t.Errorf("unexpected error: %v", err)
+						t.Errorf("Test_parseParentAndPluginFromURI() unexpected error while doing yaml marshal: %v", err)
 					}
 					_, err = w.Write(data)
 					if err != nil {
-						t.Errorf("unexpected error: %v", err)
+						t.Errorf("Test_parseParentAndPluginFromURI() unexpected error while writing data: %v", err)
 					}
 				}))
 				// create a listener with the desired port.
 				l1, err := net.Listen("tcp", uri1)
 				if err != nil {
-					t.Errorf("unexpected error: %v", err)
+					t.Errorf("Test_parseParentAndPluginFromURI() unexpected error while creating listener: %v", err)
 				}
 
 				// NewUnstartedServer creates a listener. Close that listener and replace
@@ -2116,16 +2189,16 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 				pluginTestServer = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					data, err := yaml.Marshal(tt.pluginDevfile.Data)
 					if err != nil {
-						t.Errorf("unexpected error: %v", err)
+						t.Errorf("Test_parseParentAndPluginFromURI() unexpected error while doing yaml marshal: %v", err)
 					}
 					_, err = w.Write(data)
 					if err != nil {
-						t.Errorf("unexpected error: %v", err)
+						t.Errorf("Test_parseParentAndPluginFromURI() unexpected error while writing data: %v", err)
 					}
 				}))
 				l, err := net.Listen("tcp", uri2)
 				if err != nil {
-					t.Errorf("unexpected error: %v", err)
+					t.Errorf("Test_parseParentAndPluginFromURI() unexpected error while creating listener: %v", err)
 				}
 
 				// NewUnstartedServer creates a listener. Close that listener and replace
@@ -2157,10 +2230,14 @@ func Test_parseParentAndPluginFromURI(t *testing.T) {
 			err := parseParentAndPlugin(tt.args.devFileObj, &resolutionContextTree{}, resolverTools{})
 
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseParentAndPlugin() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("Test_parseParentAndPluginFromURI() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(tt.args.devFileObj.Data, tt.wantDevFile.Data) {
-				t.Errorf("wanted: %v, got: %v, difference at %v", tt.wantDevFile.Data, tt.args.devFileObj.Data, pretty.Compare(tt.args.devFileObj.Data, tt.wantDevFile.Data))
+				t.Errorf("Test_parseParentAndPluginFromURI() error: wanted: %v, got: %v, difference at %v", tt.wantDevFile.Data, tt.args.devFileObj.Data, pretty.Compare(tt.args.devFileObj.Data, tt.wantDevFile.Data))
+			} else if err != nil {
+				for _, wantErr := range tt.wantErr {
+					assert.Regexp(t, wantErr, err.Error(), "Test_parseParentAndPluginFromURI(): Error message should match")
+				}
 			}
 		})
 	}
@@ -2278,17 +2355,17 @@ func Test_parseParentAndPlugin_RecursivelyReference(t *testing.T) {
 	testServer1 := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, err := yaml.Marshal(parentDevfile1.Data)
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseParentAndPlugin_RecursivelyReference() unexpected error while doing yaml marshal: %v", err)
 		}
 		_, err = w.Write(data)
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseParentAndPlugin_RecursivelyReference() unexpected error while writing data: %v", err)
 		}
 	}))
 	// create a listener with the desired port.
 	l1, err := net.Listen("tcp", uri1)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Errorf("Test_parseParentAndPlugin_RecursivelyReference() unexpected error while creating listener: %v", err)
 	}
 
 	// NewUnstartedServer creates a listener. Close that listener and replace
@@ -2308,17 +2385,17 @@ func Test_parseParentAndPlugin_RecursivelyReference(t *testing.T) {
 			return
 		}
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseParentAndPlugin_RecursivelyReference() unexpected error while writing data: %v", err)
 		}
 		_, err = w.Write(data)
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseParentAndPlugin_RecursivelyReference() unexpected error while writing data: %v", err)
 		}
 	}))
 	// create a listener with the desired port.
 	l3, err := net.Listen("tcp", uri2)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Errorf("Test_parseParentAndPlugin_RecursivelyReference() unexpected error while creating listener: %v", err)
 	}
 
 	// NewUnstartedServer creates a listener. Close that listener and replace
@@ -2378,7 +2455,7 @@ func Test_parseParentAndPlugin_RecursivelyReference(t *testing.T) {
 			httpPrefix, uri2, httpPrefix, uri1)
 		// Unexpected error
 		if err == nil || !reflect.DeepEqual(expectedErr, err.Error()) {
-			t.Errorf("Test_parseParentAndPlugin_RecursivelyReference unexpected error = %v", err)
+			t.Errorf("Test_parseParentAndPlugin_RecursivelyReference() unexpected error: %v", err)
 
 			return
 		}
@@ -2392,6 +2469,9 @@ func Test_parseParentFromRegistry(t *testing.T) {
 	tool := resolverTools{
 		registryURLs: []string{"http://" + validRegistry},
 	}
+
+	invalidURLErr := "the provided registryURL: .* is not a valid URL"
+	idNotFoundErr := "failed to get id: .* from registry URLs provided"
 
 	parentDevfile := DevfileObj{
 		Data: &v2.DevfileV2{
@@ -2429,18 +2509,18 @@ func Test_parseParentFromRegistry(t *testing.T) {
 			return
 		}
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseParentFromRegistry() unexpected error while doing yaml marshal: %v", err)
 			return
 		}
 		_, err = w.Write(data)
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseParentFromRegistry() unexpected error while writing data: %v", err)
 		}
 	}))
 	// create a listener with the desired port.
 	l, err := net.Listen("tcp", validRegistry)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Errorf("Test_parseParentFromRegistry() unexpected error while creating listener: %v", err)
 		return
 	}
 
@@ -2577,7 +2657,7 @@ func Test_parseParentFromRegistry(t *testing.T) {
 		mainDevfile            DevfileObj
 		registryURI            string
 		wantDevFile            DevfileObj
-		wantErr                bool
+		wantErr                *string
 		testRecursiveReference bool
 	}{
 		{
@@ -2713,7 +2793,7 @@ func Test_parseParentFromRegistry(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidURLErr,
 		},
 		{
 			name: "it should error out with non-exist registry id provided",
@@ -2734,7 +2814,7 @@ func Test_parseParentFromRegistry(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantErr: &idNotFoundErr,
 		},
 	}
 	for _, tt := range tests {
@@ -2743,10 +2823,12 @@ func Test_parseParentFromRegistry(t *testing.T) {
 			err := parseParentAndPlugin(tt.mainDevfile, &resolutionContextTree{}, tool)
 
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseParentAndPlugin() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("Test_parseParentFromRegistry() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(tt.mainDevfile.Data, tt.wantDevFile.Data) {
-				t.Errorf("wanted: %v, got: %v, difference at %v", tt.wantDevFile.Data, tt.mainDevfile.Data, pretty.Compare(tt.mainDevfile.Data, tt.wantDevFile.Data))
+				t.Errorf("Test_parseParentFromRegistry() error: wanted: %v, got: %v, difference at %v", tt.wantDevFile.Data, tt.mainDevfile.Data, pretty.Compare(tt.mainDevfile.Data, tt.wantDevFile.Data))
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "Test_parseParentFromRegistry(): Error message should match")
 			}
 
 		})
@@ -2791,13 +2873,15 @@ func Test_parseParentFromKubeCRD(t *testing.T) {
 		},
 	}
 
+	crdNotFoundErr := "not found"
+
 	tests := []struct {
 		name                  string
 		devWorkspaceResources map[string]v1.DevWorkspaceTemplate
 		errors                map[string]string
 		mainDevfile           DevfileObj
 		wantDevFile           DevfileObj
-		wantErr               bool
+		wantErr               *string
 	}{
 		{
 			name: "should successfully override the parent data",
@@ -2904,7 +2988,6 @@ func Test_parseParentFromKubeCRD(t *testing.T) {
 					Spec: parentSpec,
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "should successfully merge the parent data without override defined",
@@ -2997,7 +3080,6 @@ func Test_parseParentFromKubeCRD(t *testing.T) {
 					Spec: parentSpec,
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "should fail if kclient get returns error",
@@ -3016,9 +3098,9 @@ func Test_parseParentFromKubeCRD(t *testing.T) {
 			},
 			devWorkspaceResources: map[string]v1.DevWorkspaceTemplate{},
 			errors: map[string]string{
-				name: "not found",
+				name: crdNotFoundErr,
 			},
-			wantErr: true,
+			wantErr: &crdNotFoundErr,
 		},
 	}
 
@@ -3035,10 +3117,12 @@ func Test_parseParentFromKubeCRD(t *testing.T) {
 			err := parseParentAndPlugin(tt.mainDevfile, &resolutionContextTree{}, tool)
 
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseParentAndPlugin() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("Test_parseParentFromKubeCRD() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(tt.mainDevfile.Data, tt.wantDevFile.Data) {
-				t.Errorf("wanted: %v, got: %v, difference at %v", tt.wantDevFile.Data, tt.mainDevfile.Data, pretty.Compare(tt.mainDevfile.Data, tt.wantDevFile.Data))
+				t.Errorf("Test_parseParentFromKubeCRD() error: wanted: %v, got: %v, difference at %v", tt.wantDevFile.Data, tt.mainDevfile.Data, pretty.Compare(tt.mainDevfile.Data, tt.wantDevFile.Data))
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "Test_parseParentFromKubeCRD(): Error message should match")
 			}
 
 		})
@@ -3046,11 +3130,13 @@ func Test_parseParentFromKubeCRD(t *testing.T) {
 }
 
 func Test_parseFromURI(t *testing.T) {
-	const uri1 = "127.0.0.1:8080"
-	const httpPrefix = "http://"
-	const localRelativeURI = "testTmp/dir/devfile.yaml"
-	const notExistURI = "notexist/devfile.yaml"
-	const invalidURL = "http//invalid.com"
+	const (
+		uri1             = "127.0.0.1:8080"
+		httpPrefix       = "http://"
+		localRelativeURI = "testTmp/dir/devfile.yaml"
+		notExistURI      = "notexist/devfile.yaml"
+		invalidURL       = "http//invalid.com"
+	)
 	uri2 := path.Join(uri1, localRelativeURI)
 
 	localDevfile := DevfileObj{
@@ -3080,20 +3166,25 @@ func Test_parseFromURI(t *testing.T) {
 		},
 	}
 
+	invalidFilePathErr := "the provided path is not a valid yaml filepath, and devfile.yaml or .devfile.yaml not found in the provided path.*"
+	readDevfileErr := "failed to read devfile from path.*"
+	URLNotFoundErr := "error getting devfile info from url: failed to retrieve .*, 404: Not Found"
+	invalidURLErr := "parse .* invalid URI for request"
+
 	// prepare for local file
 	err := os.MkdirAll(path.Dir(localRelativeURI), 0755)
 	if err != nil {
-		t.Errorf("failed to create folder: %v, error: %v", path.Dir(localRelativeURI), err)
+		t.Errorf("Test_parseFromURI() error: failed to create folder: %v, error: %v", path.Dir(localRelativeURI), err)
 		return
 	}
 	yamlData, err := yaml.Marshal(localDevfile.Data)
 	if err != nil {
-		t.Errorf("failed to marshall devfile data: %v", err)
+		t.Errorf("Test_parseFromURI() error: failed to marshall devfile data: %v", err)
 		return
 	}
 	err = ioutil.WriteFile(localRelativeURI, yamlData, 0644)
 	if err != nil {
-		t.Errorf("fail to write to file: %v", err)
+		t.Errorf("Test_parseFromURI() error: fail to write to file: %v", err)
 		return
 	}
 	defer os.RemoveAll("testTmp/")
@@ -3171,18 +3262,18 @@ func Test_parseFromURI(t *testing.T) {
 			data, err = yaml.Marshal(parentDevfile.Data)
 		}
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseFromURI() unexpected while doing yaml marshal: %v", err)
 			return
 		}
 		_, err = w.Write(data)
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseFromURI() unexpected error while writing data: %v", err)
 		}
 	}))
 	// create a listener with the desired port.
 	l, err := net.Listen("tcp", uri1)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Errorf("Test_parseFromURI() unexpected error while creating listener: %v", err)
 		return
 	}
 
@@ -3199,7 +3290,7 @@ func Test_parseFromURI(t *testing.T) {
 		curDevfileCtx   devfileCtx.DevfileCtx
 		importReference v1.ImportReference
 		wantDevFile     DevfileObj
-		wantErr         bool
+		wantErr         *string
 	}{
 		{
 			name:          "should be able to parse from relative uri on local disk",
@@ -3224,7 +3315,7 @@ func Test_parseFromURI(t *testing.T) {
 		{
 			name:          "should fail if no path or url has been set for devfile ctx",
 			curDevfileCtx: devfileCtx.DevfileCtx{},
-			wantErr:       true,
+			wantErr:       &invalidFilePathErr,
 		},
 		{
 			name:          "should fail if file not exist",
@@ -3234,7 +3325,7 @@ func Test_parseFromURI(t *testing.T) {
 					Uri: notExistURI,
 				},
 			},
-			wantErr: true,
+			wantErr: &readDevfileErr,
 		},
 		{
 			name:          "should fail if url not exist",
@@ -3244,7 +3335,7 @@ func Test_parseFromURI(t *testing.T) {
 					Uri: notExistURI,
 				},
 			},
-			wantErr: true,
+			wantErr: &URLNotFoundErr,
 		},
 		{
 			name:          "should fail if with invalid URI format",
@@ -3254,7 +3345,7 @@ func Test_parseFromURI(t *testing.T) {
 					Uri: invalidURL,
 				},
 			},
-			wantErr: true,
+			wantErr: &invalidURLErr,
 		},
 	}
 	for _, tt := range tests {
@@ -3263,15 +3354,17 @@ func Test_parseFromURI(t *testing.T) {
 			if tt.curDevfileCtx.GetURL() == "" {
 				err := tt.curDevfileCtx.SetAbsPath()
 				if err != nil {
-					t.Errorf("Test_parseFromURI() unexpected error = %v", err)
+					t.Errorf("Test_parseFromURI() unexpected error: %v", err)
 					return
 				}
 			}
 			got, err := parseFromURI(tt.importReference, tt.curDevfileCtx, &resolutionContextTree{}, resolverTools{})
-			if tt.wantErr == (err == nil) {
-				t.Errorf("Test_parseFromURI() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("Test_parseFromURI() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(got.Data, tt.wantDevFile.Data) {
-				t.Errorf("wanted: %v, got: %v, difference at %v", tt.wantDevFile, got, pretty.Compare(tt.wantDevFile, got))
+				t.Errorf("Test_parseFromURI() error: wanted: %v, got: %v, difference at %v", tt.wantDevFile, got, pretty.Compare(tt.wantDevFile, got))
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "Test_parseFromURI(): Error message should match")
 			}
 		})
 	}
@@ -3312,6 +3405,11 @@ func Test_parseFromRegistry(t *testing.T) {
 		},
 	}
 
+	invalidURLErr := "the provided registryURL: .* is not a valid URL"
+	URLNotFoundErr := "failed to retrieve .*, 404: Not Found"
+	missingRegistryURLErr := "failed to fetch from registry, registry URL is not provided"
+	invalidRegistryURLErr := "Get .* dial tcp: lookup http: .*"
+
 	testServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data []byte
 		var err error
@@ -3322,18 +3420,18 @@ func Test_parseFromRegistry(t *testing.T) {
 			return
 		}
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseFromRegistry() unexpected error while doing yaml marshal: %v", err)
 			return
 		}
 		_, err = w.Write(data)
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Errorf("Test_parseFromRegistry() unexpected error while writing data: %v", err)
 		}
 	}))
 	// create a listener with the desired port.
 	l, err := net.Listen("tcp", registry)
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Errorf("Test_parseFromRegistry() unexpected error while creating listener: %v", err)
 		return
 	}
 
@@ -3351,7 +3449,7 @@ func Test_parseFromRegistry(t *testing.T) {
 		importReference v1.ImportReference
 		tool            resolverTools
 		wantDevFile     DevfileObj
-		wantErr         bool
+		wantErr         *string
 	}{
 		{
 			name:        "should fail if provided registryUrl does not have protocol prefix",
@@ -3362,7 +3460,7 @@ func Test_parseFromRegistry(t *testing.T) {
 				},
 				RegistryUrl: registry,
 			},
-			wantErr: true,
+			wantErr: &invalidURLErr,
 		},
 		{
 			name:        "should be able to parse from provided registryUrl with prefix",
@@ -3394,7 +3492,7 @@ func Test_parseFromRegistry(t *testing.T) {
 				},
 				RegistryUrl: httpPrefix + registry,
 			},
-			wantErr: true,
+			wantErr: &URLNotFoundErr,
 		},
 		{
 			name: "should fail if registryUrl is not provided, and no registry URLs has been set in tool",
@@ -3403,7 +3501,7 @@ func Test_parseFromRegistry(t *testing.T) {
 					Id: registryId,
 				},
 			},
-			wantErr: true,
+			wantErr: &missingRegistryURLErr,
 		},
 		{
 			name: "should fail if registryUrl is invalid",
@@ -3413,16 +3511,18 @@ func Test_parseFromRegistry(t *testing.T) {
 				},
 				RegistryUrl: httpPrefix + invalidRegistry,
 			},
-			wantErr: true,
+			wantErr: &invalidRegistryURLErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parseFromRegistry(tt.importReference, &resolutionContextTree{}, tt.tool)
-			if tt.wantErr == (err == nil) {
-				t.Errorf("Test_parseFromRegistry() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("Test_parseFromRegistry() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(got.Data, tt.wantDevFile.Data) {
-				t.Errorf("wanted: %v, got: %v, difference at %v", tt.wantDevFile, got, pretty.Compare(tt.wantDevFile, got))
+				t.Errorf("Test_parseFromRegistry() error: wanted: %v, got: %v, difference at %v", tt.wantDevFile, got, pretty.Compare(tt.wantDevFile, got))
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "Test_parseFromRegistry(): Error message should match")
 			}
 		})
 	}
@@ -3458,6 +3558,8 @@ func Test_parseFromKubeCRD(t *testing.T) {
 		},
 	}
 
+	crdNotFoundErr := "not found"
+
 	tests := []struct {
 		name                  string
 		curDevfileCtx         devfileCtx.DevfileCtx
@@ -3465,7 +3567,7 @@ func Test_parseFromKubeCRD(t *testing.T) {
 		devWorkspaceResources map[string]v1.DevWorkspaceTemplate
 		errors                map[string]string
 		wantDevFile           DevfileObj
-		wantErr               bool
+		wantErr               *string
 	}{
 		{
 			name:        "should successfully parse the parent with namespace specified in devfile",
@@ -3487,7 +3589,6 @@ func Test_parseFromKubeCRD(t *testing.T) {
 					Spec: parentSpec,
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name:        "should fail if kclient get returns error",
@@ -3502,9 +3603,9 @@ func Test_parseFromKubeCRD(t *testing.T) {
 			},
 			devWorkspaceResources: map[string]v1.DevWorkspaceTemplate{},
 			errors: map[string]string{
-				name: "not found",
+				name: crdNotFoundErr,
 			},
-			wantErr: true,
+			wantErr: &crdNotFoundErr,
 		},
 	}
 	for _, tt := range tests {
@@ -3518,10 +3619,12 @@ func Test_parseFromKubeCRD(t *testing.T) {
 				context:   context.Background(),
 			}
 			got, err := parseFromKubeCRD(tt.importReference, &resolutionContextTree{}, tool)
-			if tt.wantErr == (err == nil) {
-				t.Errorf("Test_parseFromKubeCRD() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("Test_parseFromKubeCRD() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil && !reflect.DeepEqual(got.Data, tt.wantDevFile.Data) {
-				t.Errorf("wanted: %v, got: %v, difference at %v", tt.wantDevFile, got, pretty.Compare(tt.wantDevFile, got))
+				t.Errorf("Test_parseFromKubeCRD() error: wanted: %v, got: %v, difference at %v", tt.wantDevFile, got, pretty.Compare(tt.wantDevFile, got))
+			} else if err != nil {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "Test_parseFromKubeCRD(): Error message should match")
 			}
 		})
 	}

@@ -17,6 +17,9 @@ func TestDevfile200_AddVolumeMount(t *testing.T) {
 	volume0 := "volume0"
 	volume1 := "volume1"
 
+	samePathPresentErr := "unable to mount volume .*, as another volume .* is mounted to the same path .* in the container .*"
+	missingContainerErr := "container component .* is not found in the devfile"
+
 	type args struct {
 		componentName string
 		volumeMounts  []v1.VolumeMount
@@ -26,7 +29,7 @@ func TestDevfile200_AddVolumeMount(t *testing.T) {
 		currentComponents []v1.Component
 		wantComponents    []v1.Component
 		args              args
-		wantErr           bool
+		wantErr           *string
 	}{
 		{
 			name: "add the volume mount when other mounts are present",
@@ -119,7 +122,7 @@ func TestDevfile200_AddVolumeMount(t *testing.T) {
 				},
 				componentName: container0,
 			},
-			wantErr: true,
+			wantErr: &samePathPresentErr,
 		},
 		{
 			name: "error out when the specified container is not found",
@@ -144,7 +147,7 @@ func TestDevfile200_AddVolumeMount(t *testing.T) {
 				},
 				componentName: container1,
 			},
-			wantErr: true,
+			wantErr: &missingContainerErr,
 		},
 	}
 	for _, tt := range tests {
@@ -160,10 +163,12 @@ func TestDevfile200_AddVolumeMount(t *testing.T) {
 			}
 
 			err := d.AddVolumeMounts(tt.args.componentName, tt.args.volumeMounts)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("AddVolumeMounts() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_AddVolumeMount() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
-				assert.Equal(t, tt.wantComponents, d.Components, "The two values should be the same.")
+				assert.Equal(t, tt.wantComponents, d.Components, "TestDevfile200_AddVolumeMount(): The two values should be the same.")
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_AddVolumeMount(): Error message should match")
 			}
 		})
 	}
@@ -209,11 +214,13 @@ func TestDevfile200_DeleteVolumeMounts(t *testing.T) {
 		},
 	}
 
+	missingMountErr := "volume mount .* is not found in the devfile"
+
 	tests := []struct {
 		name             string
 		volMountToDelete string
 		wantComponents   []v1.Component
-		wantErr          bool
+		wantErr          *string
 	}{
 		{
 			name:             "Volume Component with mounts",
@@ -242,21 +249,22 @@ func TestDevfile200_DeleteVolumeMounts(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name:             "Missing mount name",
 			volMountToDelete: "comp1",
-			wantErr:          true,
+			wantErr:          &missingMountErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := d.DeleteVolumeMount(tt.volMountToDelete)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DeleteVolumeMount() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_DeleteVolumeMounts() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
-				assert.Equal(t, tt.wantComponents, d.Components, "The two values should be the same.")
+				assert.Equal(t, tt.wantComponents, d.Components, "TestDevfile200_DeleteVolumeMounts(): The two values should be the same.")
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_DeleteVolumeMounts(): Error message should match")
 			}
 		})
 	}
@@ -265,13 +273,16 @@ func TestDevfile200_DeleteVolumeMounts(t *testing.T) {
 
 func TestDevfile200_GetVolumeMountPaths(t *testing.T) {
 
+	volumeNotMountedErr := "volume .* not mounted to component .*"
+	missingContainerErr := "container component .* is not found in the devfile"
+
 	tests := []struct {
 		name              string
 		currentComponents []v1.Component
 		mountName         string
 		componentName     string
 		wantPaths         []string
-		wantErr           bool
+		wantErr           *string
 	}{
 		{
 			name: "vol is mounted on the specified container component",
@@ -293,7 +304,6 @@ func TestDevfile200_GetVolumeMountPaths(t *testing.T) {
 			wantPaths:     []string{"/path", "/path2"},
 			mountName:     "volume1",
 			componentName: "component1",
-			wantErr:       false,
 		},
 		{
 			name: "vol is not mounted on the specified container component",
@@ -313,7 +323,7 @@ func TestDevfile200_GetVolumeMountPaths(t *testing.T) {
 			},
 			mountName:     "volume2",
 			componentName: "component1",
-			wantErr:       true,
+			wantErr:       &volumeNotMountedErr,
 		},
 		{
 			name: "invalid specified container",
@@ -333,7 +343,7 @@ func TestDevfile200_GetVolumeMountPaths(t *testing.T) {
 			},
 			mountName:     "volume1",
 			componentName: "component2",
-			wantErr:       true,
+			wantErr:       &missingContainerErr,
 		},
 	}
 	for _, tt := range tests {
@@ -348,11 +358,11 @@ func TestDevfile200_GetVolumeMountPaths(t *testing.T) {
 				},
 			}
 			gotPaths, err := d.GetVolumeMountPaths(tt.mountName, tt.componentName)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetVolumeMountPath() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != (tt.wantErr != nil) {
+				t.Errorf("TestDevfile200_GetVolumeMountPaths() unexpected error: %v, wantErr %v", err, tt.wantErr)
 			} else if err == nil {
 				if len(gotPaths) != len(tt.wantPaths) {
-					t.Error("expected mount paths length not the same as actual mount paths length")
+					t.Errorf("TestDevfile200_GetVolumeMountPaths() error: mount paths length mismatch, expected %v, actual %v", len(tt.wantPaths), len(gotPaths))
 				}
 
 				for _, wantPath := range tt.wantPaths {
@@ -364,9 +374,11 @@ func TestDevfile200_GetVolumeMountPaths(t *testing.T) {
 					}
 
 					if !matched {
-						t.Errorf("unable to find the wanted mount path %s in the actual mount paths slice", wantPath)
+						t.Errorf("TestDevfile200_GetVolumeMountPaths() error: unable to find the wanted mount path %s in the actual mount paths slice", wantPath)
 					}
 				}
+			} else {
+				assert.Regexp(t, *tt.wantErr, err.Error(), "TestDevfile200_DeleteVolumeMounts(): Error message should match")
 			}
 		})
 	}

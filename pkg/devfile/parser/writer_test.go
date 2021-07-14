@@ -40,11 +40,11 @@ func TestWriteYamlDevfile(t *testing.T) {
 		// test func()
 		err := devfileObj.WriteYamlDevfile()
 		if err != nil {
-			t.Errorf("unexpected error: '%v'", err)
+			t.Errorf("TestWriteYamlDevfile() unexpected error: '%v'", err)
 		}
 
 		if _, err := fs.Stat(OutputDevfileYamlPath); err != nil {
-			t.Errorf("unexpected error: '%v'", err)
+			t.Errorf("TestWriteYamlDevfile() unexpected error: '%v'", err)
 		}
 	})
 }

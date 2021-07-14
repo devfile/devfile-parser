@@ -13,7 +13,6 @@ func TestFilterDevfileObject(t *testing.T) {
 		attributes attributes.Attributes
 		options    DevfileOptions
 		wantFilter bool
-		wantErr    bool
 	}{
 		{
 			name: "Filter with one key",
@@ -27,7 +26,6 @@ func TestFilterDevfileObject(t *testing.T) {
 				},
 			},
 			wantFilter: true,
-			wantErr:    false,
 		},
 		{
 			name: "Filter with two keys",
@@ -42,7 +40,6 @@ func TestFilterDevfileObject(t *testing.T) {
 				},
 			},
 			wantFilter: true,
-			wantErr:    false,
 		},
 		{
 			name: "Filter with missing key",
@@ -56,7 +53,6 @@ func TestFilterDevfileObject(t *testing.T) {
 				},
 			},
 			wantFilter: false,
-			wantErr:    false,
 		},
 	}
 
@@ -64,10 +60,10 @@ func TestFilterDevfileObject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filterIn, err := FilterDevfileObject(tt.attributes, tt.options)
 			// Unexpected error
-			if (err != nil) != tt.wantErr {
-				t.Errorf("TestFilterDevfileObject() error = %v, wantErr %v", err, tt.wantErr)
-			} else if err == nil && filterIn != tt.wantFilter {
-				t.Errorf("TestFilterDevfileObject error - expected %v got %v", tt.wantFilter, filterIn)
+			if err != nil {
+				t.Errorf("TestFilterDevfileObject() unexpected error: %v", err)
+			} else if filterIn != tt.wantFilter {
+				t.Errorf("TestFilterDevfileObject() error: expected %v got %v", tt.wantFilter, filterIn)
 			}
 		})
 	}

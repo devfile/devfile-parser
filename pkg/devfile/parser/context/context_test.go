@@ -1,26 +1,28 @@
 package parser
 
 import (
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 func TestPopulateFromBytes(t *testing.T) {
+	failedToConvertYamlErr := "failed to convert devfile yaml to json: yaml: mapping values are not allowed in this context"
+
 	tests := []struct {
 		name        string
 		dataFunc    func() []byte
-		expectError bool
+		expectError *string
 	}{
 		{
-			name:        "valid data passed",
-			dataFunc:    validJsonRawContent200,
-			expectError: false,
+			name:     "valid data passed",
+			dataFunc: validJsonRawContent200,
 		},
 		{
 			name:        "invalid data passed",
 			dataFunc:    invalidJsonRawContent200,
-			expectError: true,
+			expectError: &failedToConvertYamlErr,
 		},
 	}
 	for _, tt := range tests {
@@ -38,16 +40,17 @@ func TestPopulateFromBytes(t *testing.T) {
 			)
 			defer testServer.Close()
 			err := d.PopulateFromURL()
-			if tt.expectError && err == nil {
-				t.Errorf("expected error, didn't get one")
-			} else if !tt.expectError && err != nil {
-				t.Errorf("unexpected error '%v'", err)
+			if (tt.expectError != nil) != (err != nil) {
+				t.Errorf("TestPopulateFromBytes(): unexpected error: %v, wantErr: %v", err, tt.expectError)
+			} else if tt.expectError != nil {
+				assert.Regexp(t, *tt.expectError, err.Error(), "TestPopulateFromBytes(): Error message should match")
 			}
 		})
 	}
 }
 
 func TestPopulateFromInvalidURL(t *testing.T) {
+	expectError := ".*invalid URI for request"
 	t.Run("Populate from invalid URL", func(t *testing.T) {
 		var (
 			d = DevfileCtx{
@@ -58,7 +61,9 @@ func TestPopulateFromInvalidURL(t *testing.T) {
 		err := d.PopulateFromURL()
 
 		if err == nil {
-			t.Errorf("expected an error, didn't get one")
+			t.Errorf("TestPopulateFromInvalidURL(): expected an error, didn't get one")
+		} else {
+			assert.Regexp(t, expectError, err.Error(), "TestPopulateFromInvalidURL(): Error message should match")
 		}
 	})
 }
